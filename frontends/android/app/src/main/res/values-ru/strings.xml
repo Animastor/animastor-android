@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app name is a brand: always shown as "Animastor" (Latin) regardless
+         of the UI language — see task: toolbar/launcher must not localize it. -->
+    <string name="app_name">Animastor</string>
+
+    <!-- Bottom Navigation — sentence case (паритет с мобильным веб-фронтом:
+         компактные подписи вместо сплошного блока CAPS на узких экранах). -->
+    <string name="tab_file">Файл</string>
+    <string name="tab_generate">Генератор</string>
+    <string name="toolbar_ai">ИИ</string>
+    <string name="tab_play">Плеер</string>
+    <string name="tab_edit">Редактор</string>
+    <string name="tab_navigate">Навигатор</string>
+
+    <!-- File Screen -->
+    <string name="file_title">Импорт книги</string>
+    <string name="file_subtitle">Выберите .vbook файл для начала</string>
+    <string name="file_from_device">Открыть</string>
+    <string name="file_from_device_desc">Открыть .vbook, .epub или другой файл</string>
+    <string name="file_ai_assistant">AI Ассистент</string>
+    <string name="file_ai_assistant_desc">Создать книгу с помощью AI</string>
+    <string name="pick_file">Выбрать файл</string>
+    <string name="start_assistant">Запустить ассистента</string>
+    <string name="invalid_vbook_format">Неверный формат книги</string>
+    <string name="upload_failed">Ошибка загрузки</string>
+    <string name="file_too_large">Файл слишком большой</string>
+
+    <!-- File Screen Download -->
+    <string name="download_section">Скачать</string>
+    <string name="download_storyboard">Скачать сториборд</string>
+    <string name="download_storyboard_desc">Скачать изображения сториборда и аудио сцен</string>
+    <string name="download_audio">Скачать аудио</string>
+    <string name="download_audio_desc">Экспорт склеенного аудио всей книги</string>
+    <string name="download_book">Скачать визуальную книгу</string>
+    <string name="download_book_desc">Скачать .vbook</string>
+    <string name="download_video">Скачать видео</string>
+    <string name="download_video_desc">Экспорт финального видео со склеенными сценами</string>
+    <string name="no_book_loaded">Книга не загружена</string>
+    <string name="download_failed">Ошибка загрузки</string>
+    <string name="download_saved">Сохранено: %1$s</string>
+    <string name="export_preparing">Подготовка экспорта…</string>
+    <string name="export_preparing_storyboard">Создание архива сториборда…</string>
+    <string name="export_merging_audio">Склеиваю аудиодорожки…</string>
+    <string name="export_merging_video">Склеиваю сцены и экспортирую видео…</string>
+    <string name="export_saving">Сохраняю в Загрузки…</string>
+    <string name="export_progress">%1$d%%</string>
+    <string name="export_saved">Сохранено</string>
+
+    <!-- Library -->
+    <string name="library_title">Библиотека</string>
+    <string name="select_book_error">Сначала выберите книгу</string>
+    <string name="empty_library">Книг пока нет</string>
+
+    <!-- Play Screen -->
+    <string name="play_placeholder">Откройте книгу для начала воспроизведения</string>
+    <string name="play_placeholder_no_generation">Начните генерацию. Перейдите на вкладку «Генератор».</string>
+    <string name="play_generate_hint">Нажмите «Генерировать» для начала</string>
+    <string name="play_generate">ГЕНЕРИРОВАТЬ</string>
+    <string name="play_play">СТАРТ</string>
+    <string name="play_pause">ПАУЗА</string>
+    <string name="play_stop">СТОП</string>
+    <string name="play_generating">ГЕНЕРАЦИЯ…</string>
+    <string name="play_downloading">ЗАГРУЗКА…</string>
+    <string name="play_loading">Загрузка…</string>
+    <string name="play_ready">Готово</string>
+    <string name="play_paused">Пауза</string>
+    <string name="play_playing">Воспроизведение…</string>
+    <string name="layer_audio">Аудио</string>
+    <string name="layer_image">Изображение</string>
+    <string name="layer_video">Видео</string>
+    <string name="layer_subtitles">Субтитры</string>
+    <string name="mode_cinematic">Кино</string>
+    <string name="mode_audiobook">Аудиокнига</string>
+    <string name="mode_slideshow">Слайдшоу</string>
+    <string name="mode_gallery">Галерея</string>
+
+    <!-- Edit Screen -->
+    <string name="edit_title">Редактор сцен</string>
+    <string name="edit_placeholder">Выберите сцену для редактирования</string>
+    <string name="edit_scene">Сцена</string>
+    <string name="edit_audio">Аудио</string>
+    <string name="edit_units">Модули</string>
+    <string name="edit_units_tab">Модуль</string>
+    <string name="edit_section_unit">Модуль</string>
+    <string name="edit_unit_label">Модуль %1$d/%2$d</string>
+    <string name="edit_unit_duration">%1$s с</string>
+    <string name="edit_carousel_title">Карусель изображений</string>
+    <string name="edit_waveform_title">Waveform редактор</string>
+    <string name="edit_collapse">Свернуть</string>
+    <string name="edit_close">Закрыть</string>
+    <string name="edit_section_id">Идентификаторы</string>
+    <string name="edit_section_audio">Аудио</string>
+    <string name="edit_section_image">Изображение</string>
+    <string name="edit_section_video">Видео</string>
+    <!-- Секции сцены -->
+    <string name="edit_section_scene_general">Общие</string>
+    <string name="edit_section_scene_characters">Персонажи</string>
+    <string name="edit_section_scene_location">Локация</string>
+    <string name="edit_section_scene_overrides">Перекрытия персонажей</string>
+    <string name="overrides_limit_hint">Не более %1$d — участники сцены</string>
+    <string name="edit_characters_tab">Персонажи</string>
+    <string name="edit_voices_tab">Голоса</string>
+    <string name="edit_locations_tab">Локации</string>
+    <string name="edit_global_tab">Глобальные</string>
+    <string name="edit_no_characters">Нет персонажей</string>
+    <string name="edit_tabs_global_book">Книга</string>
+    <string name="edit_tabs_global_world">Мир</string>
+    <string name="edit_no_locations">Нет локаций</string>
+    <string name="edit_no_voices">Нет голосов</string>
+    <string name="edit_narrator_voice">Рассказчик</string>
+    <string name="edit_character_voice">%1$s (голос персонажа)</string>
+    <!-- Field labels -->
+    <string name="field_name">имя</string>
+    <string name="field_description">описание</string>
+    <string name="field_environment">окружение</string>
+    <string name="field_type">тип</string>
+    <string name="field_time">время</string>
+    <string name="field_season">сезон</string>
+    <string name="field_lighting">освещение</string>
+    <string name="field_weather">погода</string>
+    <string name="field_mood">настроение</string>
+    <string name="field_atmosphere">атмосфера</string>
+    <string name="field_instruction">инструкция</string>
+    <string name="field_title">название</string>
+    <string name="field_author">автор</string>
+    <string name="field_language">язык</string>
+    <string name="field_country">страна</string>
+    <string name="field_epoch">эпоха</string>
+    <string name="field_render_style">стиль рендеринга</string>
+    <string name="field_lighting_default">освещение</string>
+    <string name="field_narrator_instruction">голос рассказчика</string>
+    <string name="field_book_id">id книги</string>
+    <string name="field_vbook_version">версия vbook</string>
+    <string name="field_created_at">создана</string>
+    <string name="field_state">состояние</string>
+    <string name="field_passport">паспорт</string>
+    <string name="field_character_id">id персонажа</string>
+    <string name="field_appearance">внешность</string>
+    <string name="field_clothes">одежда</string>
+    <string name="field_video_tokens">видео-токены</string>
+    <string name="field_text">текст</string>
+    <string name="field_speaker">говорящий</string>
+    <string name="field_audio_text">текст аудио</string>
+    <string name="field_shot">кадр</string>
+    <string name="field_prompt">промпт</string>
+    <string name="field_negative">негатив</string>
+    <string name="field_action">действие</string>
+    <string name="field_chapter_title">название главы</string>
+    <string name="field_scene_title">название сцены</string>
+    <string name="field_style">стиль</string>
+    <string name="field_participants">участники</string>
+    <string name="field_voice">голос</string>
+    <string name="field_full_text">полный текст</string>
+    <string name="edit_field_chapter_id">ID главы</string>
+    <string name="edit_field_scene_id">ID сцены</string>
+    <string name="edit_save">Сохранить</string>
+    <string name="edit_saving">Сохранение…</string>
+    <string name="edit_loading">Загрузка…</string>
+    <string name="edit_load_failed">Не удалось загрузить данные книги</string>
+    <string name="edit_pacing">Темп</string>
+    <string name="edit_mood">Настроение</string>
+    <string name="edit_prompt">Промпт</string>
+    <string name="edit_duration">Длительность</string>
+    <string name="edit_regenerate">Сгенерировать заново</string>
+    <string name="edit_generate">ГЕНЕРИРОВАТЬ</string>
+    <string name="edit_generating">ГЕНЕРАЦИЯ…</string>
+
+    <!-- Toolbar Generate Button (Phase C) — всегда "ГЕНЕРИРОВАТЬ" -->
+    <string name="toolbar_generate_create">ГЕНЕРИРОВАТЬ</string>
+    <string name="toolbar_generate_refresh">ГЕНЕРИРОВАТЬ</string>
+    <string name="toolbar_generate_running">ГЕНЕРИРОВАТЬ</string>
+    <string name="toolbar_generate_idle">ГЕНЕРИРОВАТЬ</string>
+    <string name="toolbar_generate_cancel">ОТМЕНИТЬ</string>
+
+    <!-- Generate Scope Dialog (Phase C) -->
+    <string name="generate_dialog_title">Область генерации</string>
+    <string name="scope_whole_book">Вся книга</string>
+    <string name="scope_current_chapter">Текущая глава</string>
+    <string name="scope_current_scene">Текущая сцена</string>
+    <string name="scope_from_current_scene">С текущей сцены и далее</string>
+    <string name="dialog_cancel">Отмена</string>
+    <string name="dialog_start">Запустить</string>
+    <string name="generate_start_failed">Не удалось запустить генерацию: %1$s</string>
+    <string name="generate_no_scene_selected">Откройте сцену, чтобы указать область</string>
+    <string name="generate_started_vbook">Запущена генерация VBook</string>
+    <string name="generate_started_layer">Запущена генерация: %1$s</string>
+    <string name="generate_all_started">Генерировать всё: %1$s (%2$s)</string>
+
+    <!-- Worker stop button (values-ru previously fell back to the EN defaults) -->
+    <string name="worker_stop_desc">Остановить процесс</string>
+    <string name="worker_stop_menu_title">Стоп</string>
+    <string name="worker_stop_menu_cancel">Отменить</string>
+
+    <!-- Generation progress -->
+    <string name="progress_label_audio">Аудио</string>
+    <string name="progress_label_image">Изображения</string>
+    <string name="progress_label_video">Видео</string>
+    <string name="worker_vbook">VBook</string>
+    <string name="progress_format">%1$s · %2$d / %3$d сцен</string>
+    <string name="progress_format_iu">%1$s · %2$d / %3$d модулей</string>
+    <string name="progress_idle">Ожидание</string>
+    <string name="generation_done">Готово</string>
+    <string name="progress_cover_generating">Генерация обложки...</string>
+    <string name="progress_vbook_analyzing">Анализ...</string>
+    <string name="progress_vbook_scenes">%1$d/%2$d</string>
+    <!-- VBook agent stage statuses (PROGRESS_STAGES) — 1:1 with mobile web i18n.ts.
+         The backend sends a machine stage/step_type id; the client maps it here so
+         the status follows the UI language instead of the backend's Russian text. -->
+    <string name="progress_vbook_stage_analyzing_structure">⟳ Анализирую структуру документа...</string>
+    <string name="progress_vbook_stage_extracting_chars">⟳ Извлекаю персонажей...</string>
+    <string name="progress_vbook_stage_extracting_locs">⟳ Извлекаю локации...</string>
+    <string name="progress_vbook_stage_creating_scenes">⟳ Создаю сцены...</string>
+    <string name="progress_vbook_stage_creating_units">⟳ Создаю юниты для сцены %1$d...</string>
+    <string name="progress_vbook_stage_creating_visuals">⟳ Создаю visual prompts для сцены %1$d...</string>
+    <string name="progress_vbook_stage_voice_generation">⟳ Подбираю голоса для персонажей...</string>
+    <string name="progress_vbook_stage_passport_reconciliation">⟳ Сверяю описания с паспортами персонажей...</string>
+    <string name="progress_vbook_stage_video_action_reconciliation">⟳ Согласовываю видеоряд с сюжетом...</string>
+    <string name="progress_vbook_stage_polishing_storyboard">⟳ Согласовываю визуальный ряд сториборда...</string>
+    <string name="progress_vbook_stage_video_action_polish">⟳ Полирую непрерывность движений...</string>
+    <string name="progress_vbook_stage_fantasy_snake_repair">⟳ Восстанавливаю естественные обозначения персонажей...</string>
+    <string name="progress_vbook_stage_cancelled">✗ Отменено</string>
+
+    <!-- IU not generated -->
+    <string name="iu_not_generated">Не сгенерировано</string>
+    <string name="iu_status_label">Изображение ещё не готово</string>
+    <string name="image_not_generated">Изображение не сгенерировано</string>
+    <string name="video_not_generated">Видео не сгенерировано</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_api_key">API Ключ</string>
+    <string name="settings_server">URL сервера</string>
+    <string name="settings_quality">Качество</string>
+    <string name="settings_cache">Очистить</string>
+    <string name="settings_cache_clear">Удалить Сториборд с сервера</string>
+    <string name="settings_cache_clear_confirm">Все сгенерированные файлы текущей книги будут удалены. Потребуется перегенерация. Продолжить?</string>
+    <string name="settings_cache_cleared">Сториборд удалён</string>
+    <string name="settings_delete_vbook">Удалить vBook с сервера</string>
+    <string name="settings_delete_vbook_confirm">Удалить всю книгу (vBook) и все связанные данные (сториборд, Redis, база данных) с сервера? Это действие необратимо.</string>
+    <string name="settings_delete_vbook_done">vBook удалён</string>
+    <string name="settings_debug">Отладка</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_auto">Авто — по времени суток</string>
+    <string name="settings_theme_light">Светлый кинозал</string>
+    <string name="settings_theme_dark">Тёмный кинозал</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_auto">Авто — как в системе</string>
+    <string name="settings_language_en">Английский</string>
+    <string name="settings_language_ru">Русский</string>
+
+    <!-- AI Assistant -->
+    <string name="ai_new_chat">Новый чат</string>
+    <string name="ai_session_list">История чатов</string>
+    <string name="ai_no_sessions">Чатов пока нет</string>
+    <string name="ai_session_delete">Удалить</string>
+    <string name="ai_session_delete_confirm">Удалить этот чат?</string>
+    <string name="ai_input_hint">Напишите сообщение…</string>
+    <string name="ai_send">Отправить</string>
+    <string name="ai_welcome">Здравствуйте! Я Анимастор, ваш интеллектуальный помощник для создания интерактивных книг. Чем могу помочь вашему проекту?</string>
+    <string name="ai_placeholder">Я понял ваш запрос. Эта функция скоро появится!</string>
+    <string name="ai_error">Ошибка: %1$s</string>
+    <string name="ai_download_book">Скачать vbook</string>
+
+    <string name="action_back">Назад</string>
+    <string name="action_copy">Копировать</string>
+    <string name="copied_to_clipboard">Скопировано</string>
+    <string name="file_status_opening">Открытие книги…</string>
+    <string name="file_status_generating">Генерация сцен…</string>
+    <string name="file_status_checking">Проверка медиа…</string>
+
+    <!-- File Create -->
+    <string name="file_create">Создать</string>
+    <string name="file_create_desc">Создать новую визуальную книгу с помощью AI</string>
+    <string name="ai_creation_welcome">Я готов создать новую визуальную книгу. Как назовём нашу книгу? Напишите или надиктуйте название и текст, и я превращу его в полноценную визуальную книгу.</string>
+
+    <!-- Navigate Screen -->
+    <string name="navigate_title">Оглавление</string>
+    <string name="navigate_empty">Книга не загружена</string>
+    <string name="navigate_chapter">Глава</string>
+    <string name="navigate_scene">Сцена</string>
+    <string name="navigate_unit">Модуль</string>
+    <string name="navigate_units_count">%1$d модулей</string>
+    <string name="navigate_current_position">Текущее: %1$s / %2$s / %3$s</string>
+    <string name="navigate_no_position">Позиция не выбрана</string>
+    <string name="navigate_cover">Обложка</string>
+    <string name="navigate_prologue">Пролог</string>
+    <string name="navigate_scene_type">сцена</string>
+
+    <!-- AI Context Bar -->
+    <string name="ai_context_bar">%s</string>
+    <string name="ai_no_context">Книга не загружена</string>
+    <string name="ai_welcome_context">Вы открыли книгу «%1$s».\nТекущая позиция: %2$s / %3$s / %4$s\n\nВ каком режиме будем работать? Общение, Редактор, Режиссёр, Извлечение или Проверка?</string>
+
+    <!-- AI Assistant Modes (G.1.1) -->
+    <string name="ai_mode_conversation">Общение</string>
+    <string name="ai_mode_conversation_desc">Свободный диалог, ответы на вопросы, обсуждение идей</string>
+    <string name="ai_mode_import">Импорт</string>
+    <string name="ai_mode_import_desc">Преобразование произвольного текста в структуру книги</string>
+    <string name="ai_mode_edit">Редактор</string>
+    <string name="ai_mode_edit_desc">Изменение сцен, персонажей, локаций, структуры книги</string>
+    <string name="ai_mode_director">Режиссёр</string>
+    <string name="ai_mode_director_desc">Композиция кадра, камера, свет, атмосфера, раскадровка</string>
+    <string name="ai_mode_extraction">Извлечение</string>
+    <string name="ai_mode_extraction_desc">Извлечение сущностей: персонажи, предметы, локации, ключевые термины</string>
+    <string name="ai_mode_validation">Проверка</string>
+    <string name="ai_mode_validation_desc">Проверка JSON, ссылок, обязательных полей, целостности</string>
+    <string name="ai_mode_switch">Режим: %1$s — %2$s</string>
+    <string name="ai_position_format">Вы находитесь: %1$s / %2$s — %3$s</string>
+
+    <!-- Legacy (keep for compatibility) -->
+    <string name="placeholder_default">Изображение сцены</string>
+    <string name="library_button">Библиотека</string>
+    <string name="file_button">Открыть</string>
+    <string name="select_button">Выбрать</string>
+    <string name="loading_book_status">Загрузка выбранной книги…</string>
+    <string name="generating_status">Генерация сцены…</string>
+    <string name="book_selected_status">Выбрана книга: %1$s</string>
+    <string name="ready_status">Готово для %1$s (Сцена ID: %2$s)</string>
+    <string name="empty_state">Выберите визуальную книгу из библиотеки.</string>
+    <string name="empty_state_book_loaded">Книга загружена. Нажмите «Генерировать».</string>
+
+    <!-- Workflow Manager -->
+    <string name="workflow_manager_title">Менеджер Workflow</string>
+    <string name="workflow_manager_audio">Audio Workflow</string>
+    <string name="workflow_manager_image">Image Workflow</string>
+    <string name="workflow_manager_video">Video Workflow</string>
+    <string name="workflow_manager_audio_desc">Озвучка текста и диалоги</string>
+    <string name="workflow_manager_image_desc">Генерация изображений</string>
+    <string name="workflow_manager_video_desc">Генерация и анимация видео</string>
+    <string name="workflow_manager_active">%1$d активный Workflow</string>
+    <string name="workflow_manager_active_plural">%1$d активных Workflow</string>
+    <string name="workflow_manager_manage">Управление</string>
+    <string name="workflow_manager_add">Добавить Workflow</string>
+    <string name="workflow_manager_no_workflows">Нет настроенных Workflow</string>
+    <string name="workflow_manager_reload">Перезагрузить коннекторы с диска</string>
+
+    <!-- Workflow Type List -->
+    <string name="workflow_type_title">%1$s</string>
+    <string name="workflow_status_compatible">Совместим</string>
+    <string name="workflow_status_incompatible">Несовместим</string>
+    <string name="workflow_status_registered">Зарегистрирован</string>
+    <string name="workflow_status_unknown">Неизвестно</string>
+    <string name="workflow_status_edit_mode">Режим редактирования</string>
+    <string name="workflow_connector">Коннектор: %1$s</string>
+    <string name="workflow_details">Подробнее</string>
+    <string name="workflow_disable">Отключить</string>
+    <string name="workflow_enable">Включить</string>
+
+    <!-- Workflow Details -->
+    <string name="workflow_details_title">%1$s</string>
+    <string name="workflow_detail_type">Тип</string>
+    <string name="workflow_detail_version">Версия</string>
+    <string name="workflow_detail_connector">Коннектор</string>
+    <string name="workflow_detail_nodes">Ноды</string>
+    <string name="workflow_detail_status">Статус</string>
+    <string name="workflow_detail_hash">Хеш Workflow</string>
+
+    <string name="workflow_tab_inputs">Входы</string>
+    <string name="workflow_tab_outputs">Выходы</string>
+    <string name="workflow_tab_parameters">Параметры</string>
+    <string name="workflow_tab_compatibility">Совместимость</string>
+
+    <string name="workflow_input_required">Обязательно</string>
+    <string name="workflow_input_optional">Опционально</string>
+    <string name="workflow_param_default">По умолчанию: %1$s</string>
+    <string name="workflow_param_edit">Изменить</string>
+    <string name="workflow_compat_hash_match">Хеш совпадает</string>
+    <string name="workflow_compat_hash_mismatch">Хеш не совпадает</string>
+    <string name="workflow_compat_nodes_checked">Нод проверено: %1$d/%2$d</string>
+    <string name="workflow_compat_no_warnings">Нет предупреждений</string>
+    <string name="workflow_compat_last_validated">Последняя проверка: %1$s</string>
+    <string name="workflow_no_data">Нет данных</string>
+
+    <!-- Parameter Editing -->
+    <string name="param_edit_title">Редактировать: %1$s</string>
+    <string name="param_type_range">Тип: %1$s · Мин: %2$s · Макс: %3$s</string>
+    <string name="param_type">Тип: %1$s</string>
+    <string name="param_default_value">По умолчанию: %1$s</string>
+    <string name="param_current_value">Текущее: %1$s</string>
+    <string name="param_save">Сохранить</string>
+    <string name="param_reset_default">Сбросить</string>
+    <string name="param_cancel">Отмена</string>
+    <string name="param_saving">Сохранение…</string>
+    <string name="param_save_success">Сохранено</string>
+    <string name="param_save_error">Ошибка: %1$s</string>
+    <string name="param_edit_hint">Введите значение</string>
+    <string name="param_range_hint">Диапазон: %1$s – %2$s</string>
+    <string name="param_no_range">Без ограничений</string>
+
+    <!-- Developer Mode -->
+    <string name="developer_tools">Инструменты разработчика</string>
+    <string name="developer_workflow">Разработка Workflow</string>
+    <!-- Generate Screen (new) -->
+    <string name="generate_screen_title">Генерация</string>
+    <string name="generate_global_section">Общее</string>
+    <string name="generate_all">Генерировать всё</string>
+    <string name="stop_all">Стоп всё</string>
+    <string name="generate_section_vbook">VBook Agents: %1$d</string>
+    <string name="generate_section_audio">Audio Workers: %1$d</string>
+    <string name="generate_section_image">Image Workers: %1$d</string>
+    <string name="generate_section_video">Video Workers: %1$d</string>
+    <string name="generate_vbook">Генерировать VBook</string>
+    <string name="generate_audio">Генерировать аудио</string>
+    <string name="generate_images">Генерировать изображения</string>
+    <string name="generate_video">Генерировать видео</string>
+    <string name="generate_stop">Стоп</string>
+    <string name="generate_no_workers">Нет доступных воркеров</string>
+    <string name="generate_vbook_next">Генерировать VBook далее</string>
+    <string name="generate_audio_disabled">Генерация аудио отключена. Включите переключатель выше.</string>
+    <string name="generate_image_disabled">Генерация изображений отключена. Включите переключатель выше.</string>
+    <string name="generate_video_disabled">Генерация видео отключена. Включите переключатель выше.</string>
+
+    <!-- Toggle chip labels -->
+    <!-- Worker Settings -->
+    <string name="worker_settings_title_audio">Настройки генерации аудио</string>
+    <string name="worker_settings_title_image">Настройки генерации изображений</string>
+    <string name="worker_settings_title_video">Настройки генерации видео</string>
+    <string name="worker_settings_timeout_title">Таймаут генерации</string>
+    <string name="worker_settings_timeout_label">Таймаут %1$s</string>
+    <string name="worker_settings_timeout_desc">Если генерация превышает это время, задача будет автоматически отправлена повторно</string>
+    <string name="worker_settings_timeout_unit">мин</string>
+    <string name="worker_settings_default">По умолчанию</string>
+
+    <!-- VBook Settings -->
+    <string name="vbook_settings_title">Настройки генерации VBook</string>
+    <string name="vbook_settings_scenes_per_pass">Сцен за раз</string>
+    <string name="vbook_settings_scenes_per_pass_desc">Сколько сцен AI создаёт за один проход (1-5). Большие значения обрабатывают больше текста за проход, но увеличивают время на окно.</string>
+    <string name="vbook_settings_default">По умолчанию</string>
+
+    <string name="toggle_on">Вкл.</string>
+    <string name="toggle_off">Выкл.</string>
+</resources>

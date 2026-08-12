@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ============================================================
+         DEFAULT = тёмный кинозал (остаётся точкой входа)
+         ============================================================ -->
+    <style name="Theme.Animastor" parent="Theme.Animastor.CinemaDark" />
+
+    <!-- ============================================================
+         DIALOG OVERLAY — читаемые кнопки в тёмной теме
+         ============================================================ -->
+    <style name="ThemeOverlay.Animastor.Dialog.Alert" parent="ThemeOverlay.Material3.Dialog.Alert">
+        <item name="colorPrimary">@color/cinema_accent</item>
+        <item name="dialogCornerRadius">16dp</item>
+    </style>
+
+    <!-- ============================================================
+         LIGHT DIALOG OVERLAY — согласованность со светлой темой
+         ============================================================ -->
+    <style name="ThemeOverlay.Animastor.Dialog.Alert.Light" parent="ThemeOverlay.Material3.Dialog.Alert">
+        <item name="colorPrimary">@color/cinema_primary</item>
+        <item name="dialogCornerRadius">16dp</item>
+    </style>
+
+    <!-- ============================================================
+         DARK — тёмный кинозал с бархатными креслами
+         ============================================================ -->
+    <style name="Theme.Animastor.CinemaDark" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:statusBarColor">@color/cinema_background</item>
+        <item name="android:navigationBarColor">@color/cinema_background</item>
+        <item name="android:windowBackground">@color/cinema_background</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
+
+        <item name="colorPrimary">@color/cinema_primary</item>
+        <item name="colorOnPrimary">@color/cinema_on_primary</item>
+        <item name="colorPrimaryContainer">@color/cinema_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/cinema_text_primary</item>
+
+        <item name="colorSecondary">@color/cinema_accent</item>
+        <item name="colorOnSecondary">@color/cinema_on_accent</item>
+        <item name="colorSecondaryContainer">@color/cinema_accent_container</item>
+        <item name="colorOnSecondaryContainer">@color/cinema_accent</item>
+
+        <item name="colorTertiary">@color/cinema_accent</item>
+        <item name="colorOnTertiary">@color/cinema_on_accent</item>
+
+        <item name="colorError">@color/cinema_error</item>
+        <item name="colorOnError">@color/cinema_text_primary</item>
+        <item name="colorErrorContainer">@color/cinema_error_container</item>
+        <item name="colorOnErrorContainer">@color/cinema_error</item>
+
+        <item name="colorSurface">@color/cinema_surface</item>
+        <item name="colorOnSurface">@color/cinema_text_primary</item>
+        <item name="colorSurfaceVariant">@color/cinema_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/cinema_text_secondary</item>
+        <item name="waveformTimingText">@color/cinema_waveform_timing</item>
+        <item name="colorSurfaceDim">@color/cinema_surface_dim</item>
+        <item name="colorSurfaceBright">@color/cinema_surface_variant</item>
+
+        <item name="colorOutline">@color/cinema_outline</item>
+        <item name="colorOutlineVariant">@color/cinema_outline_variant</item>
+
+        <!-- Shape -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Animastor.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Animastor.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Animastor.Large</item>
+
+        <!-- Widget styles -->
+        <item name="bottomNavigationStyle">@style/Widget.Animastor.BottomNavigation</item>
+        <item name="materialButtonStyle">@style/Widget.Animastor.Button</item>
+        <item name="materialCardViewStyle">@style/Widget.Animastor.Card</item>
+        <item name="chipStyle">@style/Widget.Animastor.Chip</item>
+        <item name="tabStyle">@style/Widget.Animastor.TabLayout</item>
+        <item name="toolbarStyle">@style/Widget.Animastor.Toolbar</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.Animastor.Dialog.Alert</item>
+    </style>
+
+    <!-- ============================================================
+         LIGHT — уютный кинозал, светлый зал
+         ============================================================ -->
+    <style name="Theme.Animastor.CinemaLight" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/cinema_light_surface_dim</item>
+        <item name="android:navigationBarColor">@color/cinema_light_background</item>
+        <item name="android:windowBackground">@color/cinema_light_background</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
+
+        <item name="colorPrimary">@color/cinema_primary</item>
+        <item name="colorOnPrimary">@color/cinema_on_primary</item>
+        <item name="colorPrimaryContainer">@color/cinema_light_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/cinema_primary</item>
+
+        <item name="colorSecondary">@color/cinema_accent</item>
+        <item name="colorOnSecondary">@color/cinema_on_accent</item>
+        <item name="colorSecondaryContainer">@color/cinema_light_accent_container</item>
+        <item name="colorOnSecondaryContainer">@color/cinema_accent_dim</item>
+
+        <item name="colorTertiary">@color/cinema_accent_dim</item>
+        <item name="colorOnTertiary">@color/cinema_light_text_primary</item>
+
+        <item name="colorError">@color/cinema_error</item>
+        <item name="colorOnError">@color/cinema_light_text_primary</item>
+        <item name="colorErrorContainer">@color/cinema_light_error_container</item>
+        <item name="colorOnErrorContainer">@color/cinema_primary</item>
+
+        <item name="colorSurface">@color/cinema_light_surface</item>
+        <item name="colorOnSurface">@color/cinema_light_text_primary</item>
+        <item name="colorSurfaceVariant">@color/cinema_light_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/cinema_light_text_secondary</item>
+        <item name="waveformTimingText">@color/cinema_light_waveform_timing</item>
+        <item name="colorSurfaceDim">@color/cinema_light_surface_dim</item>
+        <item name="colorSurfaceBright">@color/cinema_light_surface</item>
+
+        <item name="colorOutline">@color/cinema_light_outline</item>
+        <item name="colorOutlineVariant">@color/cinema_light_outline_variant</item>
+
+        <!-- Shape (same as dark) -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Animastor.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Animastor.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Animastor.Large</item>
+
+        <!-- Widget styles (same as dark — they use ?attr/ now) -->
+        <item name="bottomNavigationStyle">@style/Widget.Animastor.BottomNavigation</item>
+        <item name="materialButtonStyle">@style/Widget.Animastor.Button</item>
+        <item name="materialCardViewStyle">@style/Widget.Animastor.Card</item>
+        <item name="chipStyle">@style/Widget.Animastor.Chip</item>
+        <item name="tabStyle">@style/Widget.Animastor.TabLayout</item>
+        <item name="toolbarStyle">@style/Widget.Animastor.Toolbar</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.Animastor.Dialog.Alert.Light</item>
+    </style>
+
+    <!-- ============================================================
+         SHAPES
+         ============================================================ -->
+    <style name="ShapeAppearanceOverlay.Animastor.ChevronLeft" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">12dp</item>
+        <item name="cornerSizeBottomLeft">12dp</item>
+        <item name="cornerSizeTopRight">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+
+    <style name="ShapeAppearanceOverlay.Animastor.ChevronRight" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">0dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeTopRight">12dp</item>
+        <item name="cornerSizeBottomRight">12dp</item>
+    </style>
+    <style name="ShapeAppearance.Animastor.Small" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+    <style name="ShapeAppearance.Animastor.Medium" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">18dp</item>
+    </style>
+    <style name="ShapeAppearance.Animastor.Large" parent="ShapeAppearance.Material3.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <!-- ============================================================
+         WIDGET STYLES — используют ?attr/ для адаптации к теме
+         ============================================================ -->
+
+    <!-- Bottom Navigation — label appearance is pinned to TextAppearance.Animastor.TabLabel
+         (13sp medium) instead of the M3 default (12sp bold LabelMedium) so the nav matches
+         the mobile web frontend 1:1; the compact 70dp bar height is set in activity_main.xml
+         (80dp M3 default kept only as minHeight, which an exact layout_height overrides).
+         Active and inactive share the same appearance on purpose (like the web — only the
+         color changes); itemTextAppearance overrides the layout's small/large label sizes.
+         itemTextAppearanceActiveBoldEnabled=false is REQUIRED: Material 1.11.0 otherwise
+         force-bolds the active (large) label via setTextAppearanceActiveBoldEnabled(true)
+         (NavigationBarView constructor default), which the web does not do (weight stays 500).
+         Compacted paddings for the 70dp bar: in LABELED mode Material hard-positions the icon
+         container at itemPaddingTop and the label group bottom-anchored with itemPaddingBottom.
+         Calibrated on-device against the web: M3 defaults 12/16dp made the 64×32dp indicator
+         (bottom = itemPaddingTop + 32) touch the label, 8/6dp overshot to a ~11dp gap. 10/10dp
+         lands in the middle (~5dp pill→label, icon ~9dp above bar center) — matching the web's
+         geometry (icon 11..35px, pill 7..39px, label ~46px in the 70px bar). -->
+    <style name="Widget.Animastor.BottomNavigation" parent="Widget.Material3.BottomNavigationView">
+        <item name="backgroundTint">?attr/colorSurface</item>
+        <item name="itemIconTint">?attr/colorOnSurfaceVariant</item>
+        <item name="itemTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="itemTextAppearanceActive">@style/TextAppearance.Animastor.TabLabel</item>
+        <item name="itemTextAppearanceInactive">@style/TextAppearance.Animastor.TabLabel</item>
+        <item name="itemTextAppearanceActiveBoldEnabled">false</item>
+        <item name="itemPaddingTop">10dp</item>
+        <item name="itemPaddingBottom">12dp</item>
+        <item name="itemRippleColor">?attr/colorPrimaryContainer</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.Animastor.BottomNavIndicator</item>
+        <item name="elevation">8dp</item>
+    </style>
+    <style name="Widget.Animastor.BottomNavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">?attr/colorPrimary</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Animastor.Small</item>
+    </style>
+
+    <!-- Button -->
+    <style name="Widget.Animastor.Button" parent="Widget.Material3.Button">
+        <item name="cornerRadius">18dp</item>
+        <item name="backgroundTint">?attr/colorPrimary</item>
+        <item name="android:textColor">?attr/colorOnPrimary</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">15sp</item>
+        <item name="elevation">2dp</item>
+    </style>
+    <style name="Widget.Animastor.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="cornerRadius">18dp</item>
+        <item name="backgroundTint">?attr/colorSurfaceVariant</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+    <style name="Widget.Animastor.Button.Mode" parent="Widget.Material3.Button.TonalButton">
+        <item name="cornerRadius">20dp</item>
+        <item name="backgroundTint">@color/mode_chip_bg</item>
+        <item name="android:textColor">@color/mode_chip_text</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="rippleColor">?attr/colorOnSecondaryContainer</item>
+    </style>
+    <style name="Widget.Animastor.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">18dp</item>
+        <item name="strokeColor">?attr/colorOutline</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="Widget.Animastor.Button.Outlined.Error" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">18dp</item>
+        <item name="strokeColor">@color/cinema_error</item>
+        <item name="android:textColor">@color/cinema_error</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="rippleColor">@color/cinema_error_container</item>
+    </style>
+
+    <!-- Card -->
+    <style name="Widget.Animastor.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">?attr/colorSurface</item>
+        <item name="cardCornerRadius">18dp</item>
+        <item name="cardElevation">4dp</item>
+        <item name="strokeColor">?attr/colorOutlineVariant</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">0dp</item>
+    </style>
+    <style name="Widget.Animastor.Card.Elevated" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">?attr/colorSurface</item>
+        <item name="cardCornerRadius">18dp</item>
+        <item name="cardElevation">6dp</item>
+        <item name="strokeColor">?attr/colorSecondaryContainer</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <!-- Chip -->
+    <style name="Widget.Animastor.Chip" parent="Widget.Material3.Chip.Filter.Elevated">
+        <item name="chipBackgroundColor">?attr/colorSurfaceVariant</item>
+        <item name="chipStrokeColor">?attr/colorOutlineVariant</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+        <item name="chipIconTint">?attr/colorOnSurfaceVariant</item>
+        <item name="checkedIconTint">?attr/colorOnPrimary</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <!-- Toggle Chip — On/Off toggle button for worker sections
+         Height matches the gear icon (32dp).
+         Width is fixed (62dp) so the chip doesn't change size between
+         "On"/"Off" or "Вкл."/"Выкл." texts.
+
+         Use wrap_content + chipMinHeight (not EXACTLY) so the Chip's
+         internal onMeasure logic correctly calculates 32dp without
+         interference from touch-target insets. -->
+    <style name="Widget.Animastor.Chip.Toggle" parent="Widget.Animastor.Chip">
+        <item name="chipBackgroundColor">@color/toggle_chip_bg</item>
+        <item name="chipStrokeColor">@color/toggle_chip_stroke</item>
+        <item name="chipStrokeWidth">1.5dp</item>
+        <item name="android:textColor">@color/toggle_chip_text</item>
+        <item name="chipIconTint">@color/toggle_chip_text</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="closeIconVisible">false</item>
+        <item name="elevation">0dp</item>
+        <item name="chipMinHeight">32dp</item>
+        <item name="chipMinTouchTargetSize">0dp</item>
+        <item name="android:minHeight">32dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+    </style>
+
+    <!-- Worker Chip — toggleable worker buttons in the toolbar -->
+    <style name="Widget.Animastor.Chip.Worker" parent="Widget.Animastor.Chip">
+        <item name="chipBackgroundColor">@color/worker_chip_bg</item>
+        <item name="chipStrokeColor">@color/worker_chip_stroke</item>
+        <item name="chipStrokeWidth">1.5dp</item>
+        <item name="chipIconTint">@color/worker_chip_icon</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <!-- Layer Chip — cinema console toggle for player layer controls
+         Uses gold accent when active, dark muted when inactive.
+         Deliberately DIFFERENT from Worker chips: no error colors. -->
+    <style name="Widget.Animastor.Chip.Layer" parent="Widget.Animastor.Chip">
+        <item name="chipBackgroundColor">@color/layer_chip_bg</item>
+        <item name="chipStrokeColor">@color/layer_chip_stroke</item>
+        <item name="chipStrokeWidth">1.5dp</item>
+        <item name="chipIconTint">@color/layer_chip_icon</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+
+    <!-- Tab label appearance (mirrors Material3 LabelLarge explicitly). Compacted
+         14sp → 13sp for the denser 70dp nav bar — parity with the mobile web
+         frontend (base.css .tabbar__item is 13sp/500). Also used by the Developer
+         View TabLayout.
+         android:textStyle=normal overrides LabelLarge's inherited bold — on
+         API < 28 textFontWeight is ignored, so without it labels would render
+         bold there (web keeps weight 500 in both states). -->
+    <style name="TextAppearance.Animastor.TabLabel" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:textStyle">normal</item>
+    </style>
+
+    <!-- TabLayout -->
+    <style name="Widget.Animastor.TabLayout" parent="Widget.Material3.TabLayout">
+        <item name="tabTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="tabSelectedTextColor">?attr/colorSecondary</item>
+        <item name="tabIndicatorColor">?attr/colorSecondary</item>
+        <item name="tabIndicatorHeight">3dp</item>
+        <item name="tabRippleColor">?attr/colorSecondaryContainer</item>
+        <item name="tabBackground">@android:color/transparent</item>
+    </style>
+
+    <!-- Toolbar -->
+    <style name="Widget.Animastor.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:background">?attr/colorSurface</item>
+        <item name="titleTextColor">?attr/colorOnSurface</item>
+        <item name="subtitleTextColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+</resources>

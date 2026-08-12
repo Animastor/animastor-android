@@ -1,0 +1,461 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Animastor</string>
+
+    <!-- Bottom Navigation — sentence case (parity with the mobile web frontend;
+         compact labels + no all-caps block on narrow screens). -->
+    <string name="tab_file">File</string>
+    <string name="tab_generate">Generator</string>
+    <string name="toolbar_ai">AI</string>
+    <string name="tab_play">Player</string>
+    <string name="tab_edit">Editor</string>
+    <string name="tab_navigate">Navigator</string>
+
+    <!-- File Screen -->
+    <string name="file_title">Import Book</string>
+    <string name="file_subtitle">Select a .vbook file to begin</string>
+    <string name="file_from_device">Open</string>
+    <string name="file_from_device_desc">Open a .vbook, .epub, or other file</string>
+    <string name="file_ai_assistant">AI Assistant</string>
+    <string name="file_ai_assistant_desc">Create a book with AI guidance</string>
+    <string name="pick_file">Pick File</string>
+    <string name="start_assistant">Start Assistant</string>
+    <string name="invalid_vbook_format">Invalid book format</string>
+    <string name="upload_failed">Upload failed</string>
+    <string name="file_too_large">File too large</string>
+
+    <!-- File Screen Download -->
+    <string name="download_section">Download</string>
+    <string name="download_storyboard">Download Storyboard</string>
+    <string name="download_storyboard_desc">Download storyboard images and scene audio</string>
+    <string name="download_audio">Download Audio</string>
+    <string name="download_audio_desc">Export merged audio for the whole book</string>
+    <string name="download_book">Download Visual Book</string>
+    <string name="download_book_desc">Download .vbook</string>
+    <string name="download_video">Download Video</string>
+    <string name="download_video_desc">Export final video with merged scenes</string>
+    <string name="no_book_loaded">No book loaded</string>
+    <string name="download_failed">Download failed</string>
+    <string name="download_saved">Saved: %1$s</string>
+    <string name="export_preparing">Preparing export…</string>
+    <string name="export_preparing_storyboard">Creating storyboard archive…</string>
+    <string name="export_merging_audio">Merging audio tracks…</string>
+    <string name="export_merging_video">Merging scenes and exporting video…</string>
+    <string name="export_saving">Saving to Downloads…</string>
+    <string name="export_progress">%1$d%%</string>
+    <string name="export_saved">Saved</string>
+
+    <!-- File Create -->
+    <string name="file_create">Create</string>
+    <string name="file_create_desc">Create a new visual book with AI</string>
+    <string name="file_status_opening">Opening book…</string>
+    <string name="file_status_generating">Generating scenes…</string>
+    <string name="file_status_checking">Checking media…</string>
+    <string name="ai_creation_welcome">I\'m ready to create a new visual book. What should we name our book? Write or dictate the title and text, and I\'ll turn it into a full visual book.</string>
+
+    <!-- Library -->
+    <string name="library_title">Library</string>
+    <string name="select_book_error">Select a book first</string>
+    <string name="empty_library">No books yet</string>
+
+    <!-- AI Assistant -->
+    <string name="ai_new_chat">New chat</string>
+    <string name="ai_session_list">Chat history</string>
+    <string name="ai_no_sessions">No chats yet</string>
+    <string name="ai_session_delete">Delete</string>
+    <string name="ai_session_delete_confirm">Delete this chat?</string>
+    <string name="ai_input_hint">Type a message…</string>
+    <string name="ai_send">Send</string>
+    <string name="ai_mic">Voice input</string>
+    <string name="ai_welcome">Hello! I\'m Animastor, your intelligent assistant for creating interactive books. How can I help you with your project today?</string>
+    <string name="ai_download_book">Download vbook</string>
+    <string name="ai_placeholder">I understand your request. This feature is coming soon!</string>
+    <string name="ai_error">Error: %1$s</string>
+    <string name="ai_speaking">Listening...</string>
+    <string name="ai_permission_required">Microphone permission required</string>
+
+    <!-- Play Screen -->
+    <string name="play_placeholder">Open a book to start playback</string>
+    <string name="play_placeholder_no_generation">Start generation. Go to the GENERATE tab.</string>
+    <string name="play_generate_hint">Press GENERATE to start</string>
+    <string name="play_generate">GENERATE</string>
+    <string name="play_play">PLAY</string>
+    <string name="play_pause">PAUSE</string>
+    <string name="play_stop">STOP</string>
+    <string name="play_generating">GENERATING…</string>
+    <string name="play_no_workers">Start workers on GPU server</string>
+    <string name="play_downloading">DOWNLOADING…</string>
+    <string name="play_loading">Loading…</string>
+    <string name="play_ready">Ready</string>
+    <string name="play_paused">Paused</string>
+    <string name="play_playing">Playing…</string>
+    <string name="layer_audio">Audio</string>
+    <string name="layer_image">Image</string>
+    <string name="layer_video">Video</string>
+    <string name="layer_subtitles">Subtitles</string>
+    <string name="mode_cinematic">Cinematic</string>
+    <string name="mode_audiobook">Audiobook</string>
+    <string name="mode_slideshow">Slideshow</string>
+    <string name="mode_gallery">Gallery</string>
+
+    <!-- Edit Screen -->
+    <string name="edit_title">Scene Editor</string>
+    <string name="edit_placeholder">Select a scene to edit</string>
+    <string name="edit_scene">Scene</string>
+    <string name="edit_audio">Audio</string>
+    <string name="edit_units">Units</string>
+    <string name="edit_save">Save</string>
+    <string name="edit_saving">Saving…</string>
+    <string name="edit_loading">Loading…</string>
+    <string name="edit_load_failed">Failed to load book data</string>
+    <string name="edit_pacing">Pacing</string>
+    <string name="edit_mood">Mood</string>
+    <string name="edit_prompt">Prompt</string>
+    <string name="edit_duration">Duration</string>
+    <string name="edit_regenerate">Regenerate</string>
+    <string name="edit_generate">GENERATE</string>
+    <string name="edit_generating">GENERATING…</string>
+
+    <!-- Toolbar Generate Button (Phase C) — always reads "GENERATE" -->
+    <string name="toolbar_generate_create">GENERATE</string>
+    <string name="toolbar_generate_refresh">GENERATE</string>
+    <string name="toolbar_generate_running">GENERATE</string>
+    <string name="toolbar_generate_idle">GENERATE</string>
+    <string name="toolbar_generate_cancel">CANCEL</string>
+
+    <!-- Generate Scope Dialog (Phase C) -->
+    <string name="generate_dialog_title">Generate scope</string>
+    <string name="scope_whole_book">Whole book</string>
+    <string name="scope_current_chapter">Current chapter</string>
+    <string name="scope_current_scene">Current scene</string>
+    <string name="scope_from_current_scene">From this scene onward</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_start">Start</string>
+    <string name="generate_start_failed">Could not start generation: %1$s</string>
+    <string name="generate_no_scene_selected">Open a scene first to target a scope</string>
+    <string name="generate_started_vbook">VBook generation started</string>
+    <string name="generate_started_layer">%1$s generation started</string>
+    <string name="generate_all_started">Generate All: %1$s (%2$s)</string>
+
+    <!-- Cancel All button -->
+    <string name="toolbar_cancel_all">CANCEL ALL</string>
+    <string name="cancel_all_dialog_title">Cancel all processes?</string>
+    <string name="cancel_all_dialog_message">All active generation processes will be stopped. Progress will be lost for incomplete workers.</string>
+    <string name="cancel_all_confirm">Yes, cancel all</string>
+
+    <!-- Worker stop button -->
+    <string name="worker_stop_desc">Stop process</string>
+    <string name="worker_stop_menu_title">Stop</string>
+    <string name="worker_stop_menu_cancel">Cancel</string>
+
+    <!-- Generation progress -->
+    <string name="progress_label_audio">Audio</string>
+    <string name="progress_label_image">Image</string>
+    <string name="progress_label_video">Video</string>
+    <string name="worker_vbook">VBook</string>
+    <string name="progress_format">%1$s · %2$d / %3$d scenes</string>
+    <string name="progress_format_iu">%1$s · %2$d / %3$d modules</string>
+    <string name="progress_idle">Idle</string>
+    <string name="generation_done">Done</string>
+    <string name="progress_cover_generating">Generating cover...</string>
+    <string name="progress_vbook_analyzing">Analyzing...</string>
+    <string name="progress_vbook_scenes">%1$d/%2$d</string>
+    <!-- VBook agent stage statuses (PROGRESS_STAGES) — 1:1 with mobile web i18n.ts.
+         The backend sends a machine stage/step_type id; the client maps it here so
+         the status follows the UI language instead of the backend's Russian text. -->
+    <string name="progress_vbook_stage_analyzing_structure">⟳ Analyzing document structure...</string>
+    <string name="progress_vbook_stage_extracting_chars">⟳ Extracting characters...</string>
+    <string name="progress_vbook_stage_extracting_locs">⟳ Extracting locations...</string>
+    <string name="progress_vbook_stage_creating_scenes">⟳ Creating scenes...</string>
+    <string name="progress_vbook_stage_creating_units">⟳ Creating units for scene %1$d...</string>
+    <string name="progress_vbook_stage_creating_visuals">⟳ Creating visual prompts for scene %1$d...</string>
+    <string name="progress_vbook_stage_voice_generation">⟳ Picking voices for characters...</string>
+    <string name="progress_vbook_stage_passport_reconciliation">⟳ Checking descriptions against character passports...</string>
+    <string name="progress_vbook_stage_video_action_reconciliation">⟳ Matching video action to the story...</string>
+    <string name="progress_vbook_stage_polishing_storyboard">⟳ Polishing storyboard visuals...</string>
+    <string name="progress_vbook_stage_video_action_polish">⟳ Polishing motion continuity...</string>
+    <string name="progress_vbook_stage_fantasy_snake_repair">⟳ Restoring natural character references...</string>
+    <string name="progress_vbook_stage_cancelled">✗ Cancelled</string>
+
+    <!-- IU not generated -->
+    <string name="iu_not_generated">Not generated</string>
+    <string name="iu_status_label">Image not generated yet</string>
+    <string name="image_not_generated">Image not generated</string>
+    <string name="video_not_generated">Video not generated</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_server">Server URL</string>
+    <string name="settings_quality">Quality</string>
+    <string name="settings_cache">Clear</string>
+    <string name="settings_cache_clear">Delete Storyboard from Server</string>
+    <string name="settings_cache_clear_confirm">All generated files for the current book will be deleted. You will need to regenerate them. Continue?</string>
+    <string name="settings_cache_cleared">Storyboard deleted</string>
+    <string name="settings_delete_vbook">Delete vBook from Server</string>
+    <string name="settings_delete_vbook_confirm">Delete the entire book (vBook) and all associated data (storyboard, Redis, database) from the server? This cannot be undone.</string>
+    <string name="settings_delete_vbook_done">vBook deleted</string>
+    <string name="settings_debug">Debug</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_auto">Auto — by time of day</string>
+    <string name="settings_theme_light">Light Cinema</string>
+    <string name="settings_theme_dark">Dark Cinema</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_auto">Auto — follow system</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_ru">Русский</string>
+
+    <string name="action_back">Back</string>
+    <string name="action_copy">Copy</string>
+    <string name="copied_to_clipboard">Copied</string>
+    <string name="play_fullscreen">Fullscreen</string>
+
+    <!-- Legacy (keep for compatibility) -->
+    <string name="placeholder_default">Scene image</string>
+    <string name="library_button">Library</string>
+    <string name="file_button">Open</string>
+    <string name="select_button">Select</string>
+    <string name="loading_book_status">Loading selected book…</string>
+    <string name="generating_status">Generating scene…</string>
+    <string name="book_selected_status">Book selected: %1$s</string>
+    <string name="ready_status">Ready for %1$s (Scene ID: %2$s)</string>
+    <string name="empty_state">Choose a visual book from the library.</string>
+    <string name="empty_state_book_loaded">Book loaded. Press GENERATE to start.</string>
+
+    <!-- Navigate Screen -->
+    <string name="navigate_title">Book Structure</string>
+    <string name="navigate_empty">No book loaded</string>
+    <string name="navigate_chapter">Chapter</string>
+    <string name="navigate_scene">Scene</string>
+    <string name="navigate_unit">Unit</string>
+    <string name="navigate_units_count">%1$d units</string>
+    <string name="navigate_current_position">Current: %1$s / %2$s / %3$s</string>
+    <string name="navigate_no_position">No position selected</string>
+    <string name="navigate_cover">Cover</string>
+    <string name="navigate_prologue">Prologue</string>
+    <string name="navigate_scene_type">scene</string>
+
+    <!-- AI Tab -->
+    <string name="ai_context_bar">%s</string>
+    <string name="ai_no_context">No book loaded</string>
+    <string name="ai_mode_conversation">Chat</string>
+    <string name="ai_mode_conversation_desc">Free dialogue, Q&amp;A, idea discussion</string>
+    <string name="ai_mode_import">Import</string>
+    <string name="ai_mode_import_desc">Convert arbitrary text to book structure</string>
+    <string name="ai_mode_edit">Edit</string>
+    <string name="ai_mode_edit_desc">Modify scenes, characters, locations, book structure</string>
+    <string name="ai_mode_director">Director</string>
+    <string name="ai_mode_director_desc">Camera, lighting, atmosphere, storyboard</string>
+    <string name="ai_mode_extraction">Extract</string>
+    <string name="ai_mode_extraction_desc">Extract entities: characters, items, locations, key terms</string>
+    <string name="ai_mode_validation">Validate</string>
+    <string name="ai_mode_validation_desc">Validate JSON, references, data integrity</string>
+    <string name="ai_mode_switch">Mode: %1$s — %2$s</string>
+    <string name="ai_position_format">You are at: %1$s / %2$s — %3$s</string>
+    <string name="ai_welcome_context">You have opened book \"%1$s\".\nCurrent position: %2$s / %3$s / %4$s\n\nWhat mode shall we work in? Chat, Edit, Director, Extract, or Validate?</string>
+    <string name="ai_context_changed">Now analyzing: %1$s / %2$s / Unit %3$d</string>
+
+    <!-- Edit Section Labels -->
+    <string name="edit_section_id">ID</string>
+    <string name="edit_section_unit">Unit</string>
+    <string name="edit_unit_duration">%1$s s</string>
+    <string name="edit_carousel_title">Image Carousel</string>
+    <string name="edit_waveform_title">Waveform Editor</string>
+    <string name="edit_collapse">Collapse</string>
+    <string name="edit_close">Close</string>
+    <string name="edit_section_audio">Audio</string>
+    <string name="edit_section_image">Image</string>
+    <string name="edit_section_video">Video</string>
+
+    <!-- Edit Scene Section Labels -->
+    <string name="edit_section_scene_general">General</string>
+    <string name="edit_section_scene_characters">Characters</string>
+    <string name="edit_section_scene_location">Location</string>
+    <string name="edit_section_scene_overrides">Character overrides</string>
+    <string name="overrides_limit_hint">Up to %1$d — scene participants</string>
+
+    <!-- Edit Field Labels -->
+    <string name="edit_field_chapter_id">Chapter ID</string>
+    <string name="edit_field_scene_id">Scene ID</string>
+
+    <!-- Edit Tabs -->
+    <string name="edit_unit_label">Unit %1$d/%2$d</string>
+    <string name="edit_units_tab">Unit</string>
+    <string name="edit_characters_tab">Characters</string>
+    <string name="edit_voices_tab">Voices</string>
+    <string name="edit_locations_tab">Locations</string>
+    <string name="edit_global_tab">Global</string>
+    <string name="edit_no_characters">No characters</string>
+    <string name="edit_tabs_global_book">Book</string>
+    <string name="edit_tabs_global_world">World</string>
+    <string name="edit_no_locations">No locations</string>
+    <string name="edit_no_voices">No voices</string>
+    <string name="edit_narrator_voice">Narrator</string>
+    <string name="edit_character_voice">%1$s (character voice)</string>
+    <!-- Field labels for chars/voices/locations tabs -->
+    <string name="field_name">name</string>
+    <string name="field_description">description</string>
+    <string name="field_environment">environment</string>
+    <string name="field_type">type</string>
+    <string name="field_time">time</string>
+    <string name="field_season">season</string>
+    <string name="field_lighting">lighting</string>
+    <string name="field_weather">weather</string>
+    <string name="field_mood">mood</string>
+    <string name="field_atmosphere">atmosphere</string>
+    <string name="field_instruction">instruction</string>
+    <string name="field_title">title</string>
+    <string name="field_author">author</string>
+    <string name="field_language">language</string>
+    <string name="field_country">country</string>
+    <string name="field_epoch">epoch</string>
+    <string name="field_render_style">render style</string>
+    <string name="field_lighting_default">lighting default</string>
+    <string name="field_narrator_instruction">narrator voice</string>
+    <string name="field_book_id">book id</string>
+    <string name="field_vbook_version">vbook version</string>
+    <string name="field_created_at">created</string>
+    <string name="field_state">state</string>
+    <string name="field_passport">passport</string>
+    <string name="field_character_id">character id</string>
+    <string name="field_appearance">appearance</string>
+    <string name="field_clothes">clothes</string>
+    <string name="field_video_tokens">video tokens</string>
+    <string name="field_text">text</string>
+    <string name="field_speaker">speaker</string>
+    <string name="field_audio_text">audio text</string>
+    <string name="field_shot">shot</string>
+    <string name="field_prompt">prompt</string>
+    <string name="field_negative">negative</string>
+    <string name="field_action">action</string>
+    <string name="field_chapter_title">chapter title</string>
+    <string name="field_scene_title">scene title</string>
+    <string name="field_style">style</string>
+    <string name="field_participants">participants</string>
+    <string name="field_voice">voice</string>
+    <string name="field_full_text">full text</string>
+
+    <!-- Audio Timeline -->
+    <string name="timeline_play">Play scene audio</string>
+    <string name="timeline_stop">Stop playback</string>
+    <string name="timeline_reset">Reset timings</string>
+
+    <!-- Workflow Manager -->
+    <string name="workflow_manager_title">Workflow Manager</string>
+    <string name="workflow_manager_audio">Audio Workflows</string>
+    <string name="workflow_manager_image">Image Workflows</string>
+    <string name="workflow_manager_video">Video Workflows</string>
+    <string name="workflow_manager_audio_desc">Text-to-speech and dialogue generation</string>
+    <string name="workflow_manager_image_desc">Image generation pipelines</string>
+    <string name="workflow_manager_video_desc">Video generation and animation</string>
+    <string name="workflow_manager_active">%1$d active workflow</string>
+    <string name="workflow_manager_active_plural">%1$d active workflows</string>
+    <string name="workflow_manager_manage">Manage</string>
+    <string name="workflow_manager_add">Add Workflow</string>
+    <string name="workflow_manager_no_workflows">No workflows configured</string>
+    <string name="workflow_manager_reload">Reload Connectors from Disk</string>
+
+    <!-- Workflow Type List -->
+    <string name="workflow_type_title">%1$s Workflows</string>
+    <string name="workflow_status_compatible">Compatible</string>
+    <string name="workflow_status_incompatible">Incompatible</string>
+    <string name="workflow_status_registered">Registered</string>
+    <string name="workflow_status_unknown">Unknown</string>
+    <string name="workflow_status_edit_mode">Edit Mode</string>
+    <string name="workflow_connector">Connector: %1$s</string>
+    <string name="workflow_details">Details</string>
+    <string name="workflow_disable">Disable</string>
+    <string name="workflow_enable">Enable</string>
+
+    <!-- Workflow Details -->
+    <string name="workflow_details_title">%1$s</string>
+    <string name="workflow_detail_type">Type</string>
+    <string name="workflow_detail_version">Version</string>
+    <string name="workflow_detail_connector">Connector</string>
+    <string name="workflow_detail_nodes">Nodes</string>
+    <string name="workflow_detail_status">Status</string>
+    <string name="workflow_detail_hash">Workflow Hash</string>
+
+    <string name="workflow_tab_inputs">Inputs</string>
+    <string name="workflow_tab_outputs">Outputs</string>
+    <string name="workflow_tab_parameters">Parameters</string>
+    <string name="workflow_tab_compatibility">Compatibility</string>
+
+    <string name="workflow_input_required">Required</string>
+    <string name="workflow_input_optional">Optional</string>
+    <string name="workflow_param_default">Default: %1$s</string>
+    <string name="workflow_param_edit">Edit</string>
+    <string name="workflow_compat_hash_match">Hash Match</string>
+    <string name="workflow_compat_hash_mismatch">Hash Mismatch</string>
+    <string name="workflow_compat_nodes_checked">Nodes Checked: %1$d/%2$d</string>
+    <string name="workflow_compat_no_warnings">No warnings</string>
+    <string name="workflow_compat_last_validated">Last validated: %1$s</string>
+    <string name="workflow_no_data">No data available</string>
+
+    <!-- Parameter Editing (Stage 3) -->
+    <string name="param_edit_title">Edit: %1$s</string>
+    <string name="param_type_range">Type: %1$s · Min: %2$s · Max: %3$s</string>
+    <string name="param_type">Type: %1$s</string>
+    <string name="param_default_value">Default: %1$s</string>
+    <string name="param_current_value">Current: %1$s</string>
+    <string name="param_save">Save</string>
+    <string name="param_reset_default">Reset</string>
+    <string name="param_cancel">Cancel</string>
+    <string name="param_saving">Saving…</string>
+    <string name="param_save_success">Saved successfully</string>
+    <string name="param_save_error">Error: %1$s</string>
+    <string name="param_edit_hint">Enter value</string>
+    <string name="param_range_hint">Range: %1$s – %2$s</string>
+    <string name="param_no_range">No range limits</string>
+
+    <!-- Developer Mode (for future use) -->
+    <string name="developer_tools">Developer Tools</string>
+    <string name="developer_workflow">Workflow Developer</string>
+
+    <!-- Prompt Profiles (Settings) -->
+    <string name="settings_prompt_profiles">Prompt Profiles</string>
+    <string name="settings_audio_profile">Audio Profile</string>
+    <string name="settings_image_profile">Image Profile</string>
+    <string name="settings_video_profile">Video Profile</string>
+    <string name="settings_profiles_determined_by_workflow">Determined by active workflow connectors</string>
+
+    <!-- Generate Screen (new) -->
+    <string name="generate_screen_title">Generate</string>
+    <string name="generate_global_section">Global</string>
+    <string name="generate_all">Generate All</string>
+    <string name="stop_all">Stop All</string>
+    <string name="generate_section_vbook">VBook Agents: %1$d</string>
+    <string name="generate_section_audio">Audio Workers: %1$d</string>
+    <string name="generate_section_image">Image Workers: %1$d</string>
+    <string name="generate_section_video">Video Workers: %1$d</string>
+    <string name="generate_vbook">Generate VBook</string>
+    <string name="generate_audio">Generate Audio</string>
+    <string name="generate_images">Generate Images</string>
+    <string name="generate_video">Generate Video</string>
+    <string name="generate_stop">Stop</string>
+    <string name="generate_no_workers">No workers available</string>
+    <string name="generate_vbook_next">Generate VBook Next</string>
+    <string name="generate_audio_disabled">Audio generation is disabled. Enable it in the switches above.</string>
+    <string name="generate_image_disabled">Image generation is disabled. Enable it in the switches above.</string>
+    <string name="generate_video_disabled">Video generation is disabled. Enable it in the switches above.</string>
+
+    <!-- Worker Settings -->
+    <string name="worker_settings_title_audio">Audio Generation Settings</string>
+    <string name="worker_settings_title_image">Image Generation Settings</string>
+    <string name="worker_settings_title_video">Video Generation Settings</string>
+    <string name="worker_settings_timeout_title">Generation Timeout</string>
+    <string name="worker_settings_timeout_label">%1$s timeout</string>
+    <string name="worker_settings_timeout_desc">If generation exceeds this time, the task will be automatically retried</string>
+    <string name="worker_settings_timeout_unit">min</string>
+    <string name="worker_settings_default">Default</string>
+
+    <!-- VBook Settings -->
+    <string name="vbook_settings_title">VBook Generation Settings</string>
+    <string name="vbook_settings_scenes_per_pass">Scenes per pass</string>
+    <string name="vbook_settings_scenes_per_pass_desc">How many scenes the AI agent creates per generation pass (1-5). Larger values process more text per pass but take longer per window.</string>
+    <string name="vbook_settings_default">Default</string>
+
+    <!-- Toggle chip labels -->
+    <string name="toggle_on">On</string>
+    <string name="toggle_off">Off</string>
+</resources>

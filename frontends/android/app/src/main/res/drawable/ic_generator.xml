@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Three input circles — simple in -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.8"
+        android:pathData="
+            M4,5 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0
+            M4,12 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0
+            M4,19 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <!-- Converging lines — three paths merge into one -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="
+            M6,5 H11
+            M6,12 H15
+            M6,19 H11
+            M11,5 V19" />
+    <!-- Filled square — complex output -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M15,8 L23,8 L23,16 L15,16 Z" />
+</vector>

@@ -10,8 +10,14 @@ if [ ! -f local.properties ]; then
 fi
 
 # Clean build — кеш компилятора часто даёт артефакты при изменении ViewModel логики
-cd frontends/android
 ./gradlew clean assembleDebug
+
+echo "Copying APK..."
+
+cp app/build/outputs/apk/debug/app-debug.apk \
+/home/sureg/net-disk/app-debug.apk
 
 echo "Done."
 
+echo "Download:"
+echo "https://animastor.in/net-disk/app-debug.apk"

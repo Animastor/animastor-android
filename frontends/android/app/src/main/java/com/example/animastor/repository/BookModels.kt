@@ -1,0 +1,654 @@
+package com.example.animastor.repository
+
+import com.google.gson.JsonDeserializationContext
+import com.google.gson.JsonDeserializer
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
+import com.google.gson.annotations.JsonAdapter
+import com.google.gson.annotations.SerializedName
+import java.lang.reflect.Type
+
+data class BookData(
+    val manifest: Manifest? = null,
+    val book: BookMeta? = null,
+    val bible: Bible? = null,
+    val characters: List<CharDef>? = null,
+    val chapters: List<Chapter>? = null,
+    val locations: Map<String, Location>? = null,
+    val voices: Map<String, VoiceEntry>? = null,
+    // Flat scene list in book order, computed server-side (thin-client contract).
+    // Clients build playback queues and navigation from this list instead of
+    // re-implementing chapter→scene traversal. Cover is the first entry with
+    // type == "cover". Null/empty on legacy servers → fall back to chapters.
+    val scene_list: List<SceneListEntry>? = null
+)
+
+/**
+ * Flat scene reference in book order, provided by the backend (GET /book).
+ * Used by playback/navigation instead of client-side chapter→scene flattening.
+ */
+data class SceneListEntry(
+    val chapter_id: String? = null,
+    val scene_id: String? = null,
+    val type: String? = null
+)
+
+/**
+ * Flat scene references in book order.
+ *
+ * Primary source is the server-computed `scene_list` (thin-client contract).
+ * Falls back to local chapter→scene traversal only for legacy backends that
+ * do not provide `scene_list` yet.
+ */
+fun BookData.sceneRefs(): List<SceneRef> {
+    val flat = scene_list
+    if (!flat.isNullOrEmpty()) {
+        return flat.map { SceneRef(it.chapter_id, it.scene_id, it.type) }
+    }
+    return chapters.orEmpty().flatMap { ch ->
+        ch.scenes.orEmpty().map { SceneRef(ch.chapter_id, it.scene_id, it.type) }
+    }
+}
+
+data class Manifest(
+    val vbook_version: String? = null,
+    val book_id: String? = null,
+    val locked: Boolean? = null,
+    val build_id: String? = null,
+    val created_at: String? = null,
+    val seed: Int? = null,
+    val mode: String? = null,
+    val render: RenderConfig? = null
+)
+
+data class RenderConfig(
+    val mode: String? = null,
+    val pipeline: String? = null,
+    val fps: Int? = null,
+    val resolution: String? = null
+)
+
+data class BookDefaults(
+    val narration_voice: String? = null
+)
+
+@JsonAdapter(BookMetaAdapter::class)
+data class BookMeta(
+    val book_id: String? = null,
+    val version: String? = null,
+    val title: String? = null,
+    val author: String? = null,
+    val language: String? = null,
+    val defaults: BookDefaults? = null
+)
+
+class BookMetaAdapter : JsonDeserializer<BookMeta> {
+    override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): BookMeta {
+        val obj = json.asJsonObject
+        val defaultsEl = obj.get("defaults")
+        val defaults = if (defaultsEl is JsonObject) {
+            BookDefaults(
+                narration_voice = defaultsEl.string("narration_voice")
+            )
+        } else null
+        return BookMeta(
+            book_id = obj.string("book_id"),
+            version = obj.string("version"),
+            title = obj.titleText(),
+            author = obj.string("author"),
+            language = obj.string("language"),
+            defaults = defaults
+        )
+    }
+    private fun JsonObject.string(key: String): String? =
+        get(key)?.takeIf { it is JsonPrimitive }?.asString
+
+    private fun JsonObject.titleText(): String? {
+        val el = get("title") ?: return null
+        if (el is JsonPrimitive) return el.asString
+        if (el is JsonObject) {
+            el.get("subtitle")?.let { if (it is JsonPrimitive) return it.asString }
+            el.get("main")?.let { if (it is JsonPrimitive) return it.asString }
+        }
+        return null
+    }
+}
+
+data class Bible(
+    val version: String? = null,
+    val narrator: Narrator? = null,
+    val locations: Map<String, Location>? = null,
+    val render_rules: RenderRules? = null,
+    val country: String? = null,
+    val epoch: String? = null
+)
+
+data class Narrator(
+    val voice: VoiceConfig? = null
+)
+
+data class VoiceConfig(
+    val instruction: String? = null
+)
+
+data class Location(
+    val id: String? = null,
+    val name: String? = null,
+    val description: String? = null,
+    /** Global environment template — scene environments override it per-field. */
+    val environment: EnvironmentData? = null
+)
+
+data class RenderRules(
+    val style: String? = null,
+    val lighting_default: String? = null,
+    val character_consistency: Boolean? = null,
+    val spatial_consistency: Boolean? = null
+)
+
+data class CharDef(
+    val id: String? = null,
+    val name: String? = null,
+    val passport: CharPassport? = null
+)
+
+data class CharPassport(
+    val appearance: String? = null,
+    val clothes: String? = null,
+    // video_tokens may be a legacy string OR an array of 1-4 short visual
+    // features (agent-driven scheme) — Gson deserializes the array to a List.
+    val video_tokens: Any? = null
+)
+
+/** Render video_tokens (string | array of features) as editable text. */
+fun CharPassport.videoTokensAsText(): String = when (val t = video_tokens) {
+    is String -> t
+    is List<*> -> t.filterIsInstance<String>().joinToString(", ")
+    else -> ""
+}
+
+data class VoiceEntry(
+    val instruction: String? = null
+)
+
+data class Chapter(
+    val chapter_id: String? = null,
+    val chapter_title: String? = null,
+    val type: String? = null,
+    val scenes: List<Scene>? = null,
+    /** Programmatic chapter intro metadata (not a narrative scene) */
+    val intro: ChapterIntro? = null,
+    /** Server-computed display number (1-based, excludes cover/prologue). */
+    val display_number: Int? = null,
+    /** Server-decided: cover/prologue chapters are labelled by type, not "Chapter N". */
+    val is_special: Boolean = false
+)
+
+data class ChapterIntro(
+    val text: String? = null,
+    val scene_title: String? = null,
+    val style: String? = null
+)
+
+data class Scene(
+    val scene_id: String? = null,
+    val scene_title: String? = null,
+    val type: String? = null,
+    val style: String? = null,
+    val location: LocationData? = null,
+    val participants: List<String>? = null,
+    /** Per-scene character passport overrides — keyed by character id.
+     *  Each entry replaces the global passport field per-field for this scene. */
+    val passport: Map<String, CharPassport>? = null,
+    val audio: AudioConfig? = null,
+    val units: List<SceneUnit>? = null,
+    /** Server-computed display index (1-based within chapter). */
+    val display_index: Int? = null
+)
+
+
+
+// ======================================================
+// Lazy Book Models (TXT import)
+// ======================================================
+
+data class ImportTxtResponse(
+    val book_id: String,
+    val title: String? = null,
+    val author: String? = null,
+    val language: String? = null,
+    val state: String? = null,
+    val characters: Int = 0,
+    val locations: Int = 0,
+    val scenes: Int = 0,
+    val dedup: Boolean = false,
+    val message: String? = null
+)
+
+data class BookStatus(
+    val bookId: String? = null,
+    val state: String? = null,
+    val source: String? = null,
+    val title: String? = null,
+    val author: String? = null,
+    val language: String? = null,
+    val hasSource: Boolean = false,
+    val hasCharacters: Boolean = false,
+    val hasBible: Boolean = false,
+    val totalChapters: Int = 0,
+    val parsedChapters: Int = 0,
+    val totalScenes: Int = 0,
+    val parsedScenes: Int = 0,
+    val characterCount: Int = 0,
+    val locationCount: Int = 0,
+    val sourceSize: Int = 0,
+    val updatedAt: String? = null,
+    /** Server-decided readiness (bootstrapped/active with parsed content). */
+    val ready: Boolean = false
+)
+
+// ======================================================
+// Recent Books (GET /api/v1/books — session restore across clients)
+// ======================================================
+
+/** One entry of GET /api/v1/books: a book that exists on the server. */
+data class RecentBook(
+    val book_id: String = "",
+    val build_id: String? = null,
+    val title: String? = null,
+    val state: String? = null,
+    val source_type: String? = null,
+    val file_hash: String? = null,
+    val updated_at: Long = 0,
+    val parsed_chapters: Int = 0,
+    val total_scenes: Int = 0
+)
+
+data class RecentBooksResponse(
+    val books: List<RecentBook> = emptyList()
+)
+
+data class TextIndexChapter(
+    val index: Int = 0,
+    val title: String? = null,
+    val startLine: Int = 0,
+    val endLine: Int = 0,
+    val startOffset: Int = 0,
+    val endOffset: Int = 0,
+    val length: Int = 0
+)
+
+data class TextIndexPart(
+    val index: Int = 0,
+    val title: String? = null,
+    val startLine: Int = 0,
+    val endLine: Int = 0
+)
+
+data class TextIndex(
+    val totalLength: Int = 0,
+    val totalLines: Int = 0,
+    val lineCount: Int = 0,
+    val chapters: List<TextIndexChapter> = emptyList(),
+    val parts: List<TextIndexPart> = emptyList()
+)
+
+data class ChapterSummary(
+    val index: Int = 0,
+    val title: String? = null,
+    val startLine: Int = 0,
+    val endLine: Int = 0,
+    val status: String? = null,
+    val chapterId: String? = null,
+    val sceneCount: Int? = null,
+    val sceneTitles: List<String>? = null
+)
+
+data class SourceChapter(
+    val index: Int = 0,
+    val title: String? = null,
+    val startLine: Int = 0,
+    val endLine: Int = 0,
+    val startOffset: Int = 0,
+    val endOffset: Int = 0,
+    val length: Int = 0
+)
+
+data class SourceChaptersResponse(
+    val chapters: List<SourceChapter> = emptyList(),
+    val total: Int = 0
+)
+
+data class ChaptersSummary(
+    val bookId: String? = null,
+    val state: String? = null,
+    val totalChapters: Int = 0,
+    val parsedChapters: Int = 0,
+    val chapters: List<ChapterSummary> = emptyList()
+)
+
+data class BootstrapResponse(
+    val book_id: String? = null,
+    val title: String? = null,
+    val author: String? = null,
+    val language: String? = null,
+    val state: String? = null,
+    val characters: Int = 0,
+    val locations: Int = 0,
+    val scenes: Int = 0,
+    val chapters: List<LazyParseChapterItem>? = null
+)
+
+data class LazyParseChapterItem(
+    val chapter_id: String? = null,
+    val chapter_title: String? = null,
+    val chapter_index: Int = 0,
+    val status: String? = null,
+    val scene_count: Int = 0
+)
+
+data class LazyParseResponse(
+    val parsed: Int = 0,
+    val window_start: Int = -1,
+    val window_end: Int = -1,
+    val complete: Boolean = false,
+    val chapters: List<LazyParseChapterItem> = emptyList()
+)
+
+data class LazyParseToResponse(
+    val chapter: LazyBookChapter? = null,
+    val was_existing: Boolean = false,
+    val pre_parsed_ahead: Int = 0
+)
+
+data class AgentStatusResponse(
+    val active: Boolean = false,
+    val session_id: String? = null,
+    val session_status: String? = null,
+    val progress_msg: String? = null,
+    val source_type: String? = null,
+    val window_index: Int? = null,
+    val created_scenes: Int? = null,
+    val total_scenes: Int? = null,
+    val remaining_cached: Int? = null,
+    /** Backend scene cap; used only as fallback when exact block counters are absent. */
+    val window_size: Int? = null,
+    val window_start_scene: Int? = null,
+    val window_total_scenes: Int? = null,
+    val window_scene_index: Int? = null,
+    /** Machine-readable step type from agent_steps (e.g. "create_scenes", "polish_storyboard").
+     * Language-independent — used by the frontend to decide cyclic vs scene-counter progress. */
+    val step_type: String? = null,
+)
+
+data class BootstrapNextWindowResponse(
+    val book_id: String? = null,
+    val title: String? = null,
+    val state: String? = null,
+    val characters: Int = 0,
+    val locations: Int = 0,
+    val scenes: Int = 0,
+    val added_scenes: Int = 0,
+    val remaining_cached: Int = 0,
+    val all_done: Boolean = false,
+    val cached: Boolean = false,
+    val session_id: String? = null,
+    val chapters: List<LazyParseChapterItem>? = null
+)
+
+// ======================================================
+// Unified Import Response (F14)
+// ======================================================
+
+data class ImportResponse(
+    val book_id: String,
+    val format: String = "",  // "vbook" or "txt"
+    val build_id: String? = null,
+    val title: String? = null,
+    val state: String? = null,
+    val chapter_count: Int = 0,
+    val scene_count: Int = 0,
+    val was_existing: Boolean = false,
+    val dedup: Boolean = false
+)
+
+data class ResumeBootstrapResponse(
+    val book_id: String? = null,
+    val state: String? = null,
+    /** Server-decided readiness; client no longer matches state strings. */
+    val ready: Boolean = false,
+    val title: String? = null,
+    val author: String? = null,
+    val characters: Int = 0,
+    val locations: Int = 0,
+    val scenes: Int = 0,
+    val session_id: String? = null,
+    val session_status: String? = null,
+    val progress_msg: String? = null,
+    val message: String? = null
+)
+
+data class LazyBookChapter(
+    val chapter_id: String? = null,
+    val chapter_title: String? = null,
+    val type: String? = null,
+    val chapter_index: Int = 0,
+    val status: String? = null,
+    val scenes: List<Scene>? = null
+)
+
+data class PreliminaryAnalysis(
+    val title: String? = null,
+    val author: String? = null,
+    val description: String? = null,
+    val language: String? = null,
+    val genre: String? = null,
+    val characters: List<PreliminaryCharacter>? = null,
+    val locations: List<PreliminaryLocation>? = null,
+    val worldObjects: List<PreliminaryObject>? = null,
+    val worldDescription: String? = null,
+    val estimatedChapterCount: Int = 0,
+    val analysisTimestamp: String? = null
+)
+
+data class PreliminaryCharacter(
+    val id: String? = null,
+    val name: String? = null,
+    val mentionCount: Int = 0,
+    val role: String? = null,
+    val description: String? = null
+)
+
+data class PreliminaryLocation(
+    val id: String? = null,
+    val name: String? = null,
+    val type: String? = null,
+    val description: String? = null
+)
+
+data class PreliminaryObject(
+    val id: String? = null,
+    val name: String? = null,
+    val type: String? = null,
+    val description: String? = null
+)
+
+// ======================================================
+// Progress Panel Models (server-computed worker list, F2)
+// ======================================================
+
+data class ProgressPanelResponse(
+    val book_id: String = "",
+    val tasks: List<ProgressTask> = emptyList(),
+    val overall_percent: Int = 0,
+    val any_incomplete: Boolean = false
+)
+
+data class ProgressTask(
+    val task_id: String? = null,
+    val type: String = "",
+    val scope: String = "whole_book",
+    val chapter_id: String? = null,
+    val scene_id: String? = null,
+    /** Human-readable scene label from backend (e.g. "Scene 3 — The Forest"). */
+    val scene_label: String? = null,
+    /** Human-readable chapter label from backend (e.g. "Chapter 2"). */
+    val chapter_label: String? = null,
+    /** Human-readable end scene label for range scopes (e.g. "Scene 48"). */
+    val end_scene_label: String? = null,
+    /** Human-readable end chapter label for range scopes. */
+    val end_chapter_label: String? = null,
+    val target_count: Int = 0,
+    val started_at: Long? = null,
+    val ready: Int = 0,
+    val total: Int = 0,
+    val percent: Int = 0,
+    val done: Boolean = false,
+    val visible: Boolean = true,
+    val indeterminate: Boolean = false,
+    /** Server-set — true when this task has been cancelled via cancel-worker API. */
+    val cancelled: Boolean = false
+)
+
+// ======================================================
+// Window Generation Models
+// ======================================================
+
+data class TriggerNextWindowRequest(
+    val chapter_id: String? = null,
+    val scene_id: String? = null,
+    val unit_id: String? = null,
+    val unit_index: Int? = null,
+    val register_for_gpu: Boolean? = null
+)
+
+data class TriggerNextWindowResponse(
+    val triggered: Boolean = false,
+    val queued: Boolean = false,
+    val session_id: String? = null,
+    val window_index: Int? = null,
+    val all_done: Boolean = false,
+    val reason: String? = null,
+    val error: String? = null
+)
+
+data class CancelWorkerRequest(
+    val type: String? = null,
+    val task_id: String? = null
+)
+
+data class CancelWorkerResponse(
+    val ok: Boolean = false,
+    val book_id: String? = null,
+    val cancelled: List<String>? = null
+)
+
+data class GenerationStateResponse(
+    val book_id: String? = null,
+    val last_window_index: Int = -1,
+    val status: String? = null,
+    val active_session_id: String? = null,
+    val active_window_index: Int? = null,
+    val active_status: String? = null,
+    val error: String? = null,
+    val has_more: Boolean = false,
+    val total_chapters: Int = 0,
+    val parsed_chapters: Int = 0,
+    val remaining: Int = 0
+)
+
+
+
+data class LocationData(
+    val id: String? = null,
+    val environment: EnvironmentData? = null
+)
+
+data class EnvironmentData(
+    val time: String? = null,
+    val season: String? = null,
+    val lighting: String? = null,
+    val weather: String? = null,
+    val mood: String? = null,
+    val atmosphere: String? = null,
+    /** Per-scene override for a setting deviating from the book's default (flashbacks, travel). */
+    val country: String? = null,
+    val epoch: String? = null
+)
+
+data class AudioConfig(
+    val voice: String? = null,
+    val full_text: String? = null
+)
+
+// ======================================================
+// Modal Section Models (Audio / Image / Video)
+// ======================================================
+
+data class AudioSection(
+    val speaker: String? = null,
+    val text: String? = null
+)
+
+data class ImageSection(
+    val shot: String? = null,
+    val prompt: String? = null,
+    val negative: String? = null,
+    val quality: String? = null,
+    val style: String? = null,
+    val lighting: String? = null,
+    val character_binding: Boolean? = null
+)
+
+data class VideoSection(
+    val action: String? = null
+)
+
+data class SceneUnit(
+    val id: String? = null,
+    val type: String? = null,
+    val text: String? = null,
+    val participants: List<String>? = null,
+    val audio: AudioSection? = null,
+    val image: ImageSection? = null,
+    val video: VideoSection? = null
+)
+
+// ======================================================
+// Cover Data (from cover.json)
+// ======================================================
+
+data class CoverData(
+    val scene_id: String? = null,
+    val scene_title: String? = null,
+    val type: String? = null,
+    val style: String? = null,
+    val title: String? = null,
+    val author: String? = null,
+    val participants: List<String>? = null,
+    val audio: AudioConfig? = null,
+    val units: List<SceneUnit>? = null
+)
+
+// N3: chapterIndex()/sceneIndex() removed — the scene's 1-based number now comes
+// from the server-computed Scene.display_index. This reads that field instead of
+// re-deriving it by iterating the book on the client.
+fun BookData.sceneDisplayIndex(chapterId: String?, sceneId: String?): Int {
+    if (chapterId == null || sceneId == null) return 0
+    val ch = chapters?.firstOrNull { it.chapter_id == chapterId } ?: return 0
+    val sc = ch.scenes?.firstOrNull { it.scene_id == sceneId } ?: return 0
+    return sc.display_index ?: 0
+}
+
+fun BookData.unitIndex(chapterId: String?, sceneId: String?, unitOffset: Int): Int {
+    if (chapterId == null || sceneId == null) return 0
+    chapters?.forEach { ch ->
+        if (ch.chapter_id == chapterId) {
+            ch.scenes?.forEach { sc ->
+                if (sc.scene_id == sceneId) return unitOffset + 1
+            }
+        }
+    }
+    return 0
+}
