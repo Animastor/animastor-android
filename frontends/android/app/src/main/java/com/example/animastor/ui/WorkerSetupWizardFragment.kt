@@ -864,7 +864,7 @@ class WorkerSetupWizardFragment : Fragment() {
                 setOnClickListener {
                     try {
                         startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://github.com/Animastor/animastor/issues")))
+                            android.net.Uri.parse("https://github.com/Animastor/animastor-android/issues")))
                     } catch (_: Throwable) { /* no browser — silently ignored */ }
                 }
                 b.addView(this)
