@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+gradle-app.setting
+build/
+
+# Android build output
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+captures/
+release/
+
+# Local configuration (must never be committed)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
