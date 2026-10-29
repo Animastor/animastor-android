@@ -28,6 +28,7 @@ import com.example.animastor.repository.sceneRefs
 import com.example.animastor.util.MediaDecoder
 import com.example.animastor.util.SimpleDiskCache
 import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -1046,7 +1047,9 @@ class GenerateViewModel(
         generationJob = viewModelScope.launch {
             try {
                 _uiState.update { it.copy(phase = PlayerPhase.LOADING_BOOK, errorMessage = null) }
-                val res = _repository.createBlankBook()
+                // App language (settings choice already applied to the locale by
+                // MainActivity.attachBaseContext); web parity with resolveLanguage().
+                val res = _repository.createBlankBook(Locale.getDefault().language)
                 val bId = res.book_id
                 if (bId.isNullOrBlank()) {
                     throw java.io.IOException("Empty book_id from /book/blank")

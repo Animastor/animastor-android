@@ -308,9 +308,11 @@ class Repository(
     // POSTs return the persisted ids (the server keeps the proposed id when
     // unique, otherwise regenerates it); units also get their appended index.
 
-    suspend fun createBlankBook(): BlankBookResponse {
-        Log.i("Repo", "createBlankBook")
-        return api.createBlankBook(mapOf("title" to "Новая книга"))
+    suspend fun createBlankBook(languageTag: String): BlankBookResponse {
+        Log.i("Repo", "createBlankBook language=$languageTag")
+        // Web parity: frontends/app/src/app/theme.ts resolveLanguage() —
+        // { language: 'ru' | 'en' }, no hardcoded title.
+        return api.createBlankBook(mapOf("language" to resolveLanguage(languageTag)))
     }
 
     suspend fun createChapter(bookId: String, body: Map<String, @JvmSuppressWildcards Any?>): StructureCreateResponse {
@@ -830,3 +832,10 @@ class Repository(
         }
     }
 }
+
+/**
+ * Mirrors web `resolveLanguage()` (frontends/app/src/app/theme.ts): returns 'ru'
+ * when the language tag starts with 'ru', otherwise 'en'. Pure — unit-testable.
+ */
+fun resolveLanguage(languageTag: String): String =
+    if (languageTag.isNotBlank() && languageTag.lowercase().startsWith("ru")) "ru" else "en"

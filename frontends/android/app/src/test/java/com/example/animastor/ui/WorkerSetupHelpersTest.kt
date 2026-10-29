@@ -463,7 +463,7 @@ class WorkerSetupHelpersTest {
     fun legacy_singleFileFlowStillWorksAsFallback() {
         val c = BetaSettingsHelpers.buildSetupContract("https://app.example/", "wrk.id.secret", "image", "Home RTX")
         assertEquals("node worker.cjs", c.runCommand)
-        assertEquals("https://app.example/gpu/worker-source", c.sourceUrl)
+        assertEquals("https://app.example/gpu/worker-bundle", c.sourceUrl)
         val block = BetaSettingsHelpers.renderEnvBlock(c)
         assertTrue(block.contains("WORKER_TYPE=image"))
         assertTrue(block.contains("ANIMASTOR_WORKER_TOKEN=wrk.id.secret"))

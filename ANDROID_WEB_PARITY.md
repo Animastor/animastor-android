@@ -26,23 +26,28 @@ Scope: all web commits after `8169949` (2026-09-02) touching `frontends/app/src`
 | `936580c` / `c39b69d` / `dfd191d` Character Behavior pass 1 + schema v2 + v2.1 | Manual Behavior editor + `behavior.json` keyed by character_id; baseline/quirks/reactions; `instruction` dropped | `EditFragment.kt:880-897` `showAddBehaviorDialog`; `Repository.createBehavior/patchBehavior/deleteBehavior`; `BookModels.kt:180-198` `BehaviorEntry`/`BehaviorReaction` (no `instruction`) | **PARITY** |
 | `3609852` feat(ui): dim + disable future-feature assistant modes | Director/Import/Extract/Validate chips visible but dimmed + disabled (`soon`), never send a request | `AssistantMode.kt` — `soon = true` for 4 modes, `getById` falls back to Conversation, disabled chip | **PARITY** |
 | `d0b672d` fix: AI chat reliability, mode/tool policy, session CRUD parity | PATCH/DELETE `/ai/sessions/:id` (rename/delete), 504 handling, honest no-result | `BackendApi.kt`: `updateSession` (PATCH), `deleteSession` (DELETE), `listSessions`, `createSession`, `getSessionMessages`; `Repository.kt:374-389` | **PARITY** |
-| `38c59ad` feat(blank-book): send UI language in POST /book/blank | New blank book sends `{ language: resolveLanguage() }` instead of hardcoded `title: 'Новая книга'` | `Repository.kt:313`: `api.createBlankBook(mapOf("title" to "Новая книга"))` — language not sent | **GAP** |
+| `38c59ad` feat(blank-book): send UI language in POST /book/blank | New blank book sends `{ language: resolveLanguage() }` instead of hardcoded `title: 'Новая книга'` | `Repository.kt:313` `createBlankBook(languageTag)` sends `mapOf("language" to resolveLanguage(languageTag))`; pure `resolveLanguage()` + JVM test (`RepositoryLanguageTest.kt`) | **FIXED** |
 | `cc33ecc` feat(workers): compact rotate-key button + header cleanup | Rotate key button (icon + short label), removed duplicate card title | Android commit `3ec4008` (same change, `PrivateWorkersFragment.kt` +1 line) — already merged | **PARITY** |
 | `AdminPage` (expected N/A) | System AI admin page (`/admin/system-ai` kill-switch) | No admin screen, no `/admin/*` endpoints on Android | **N/A (web-only)** |
 
-**All other web commits after `8169949`** touching `frontends/app/src` or `packages/*/src` (file extraction, package audits, contour guards, player/worker/navigator extraction, post-split cleanup, docs): user-visible behavior unchanged → **N/A**. Exception `f64af5a` (removed deprecated `/worker-source`) — reflected in the 2 JVM-test failures below.
+**All other web commits after `8169949`** touching `frontends/app/src` or `packages/*/src` (file extraction, package audits, contour guards, player/worker/navigator extraction, post-split cleanup, docs): user-visible behavior unchanged → **N/A**. Exception `f64af5a` (removed deprecated `/worker-source`) — now only a test expectation; Android tests updated to `worker-bundle` (see "Fixed" below).
+
+**Items 1–3 of this task marked FIXED:**
+1. Gradle wrapper 8.12 generated (`gradle/wrapper/gradle-wrapper.jar`, `.properties`, `gradlew`, `gradlew.bat`) — `apk-build.sh` now passes through `./gradlew`.
+2. `worker-source` → `worker-bundle` in `BetaSettingsHelpersTest.kt:163-164` and `WorkerSetupHelpersTest.kt:466` (code already on `worker-bundle` at `BetaSettingsHelpers.kt:150`); `/worker-source` remains test-only.
+3. `POST /book/blank` sends UI language (`38c59ad`, above) — **FIXED**.
 
 **Build:**
-- APK builds: `./gradlew clean assembleDebug` → `BUILD SUCCESSFUL` (5m 14s). Caveat: `frontends/android/gradlew` references missing `gradle-8.12/`; build run via `/home/animastor/.gradle/wrapper/dists/gradle-8.12-bin/*/gradle-8.12/bin/gradle`. JDK 17, `$HOME/Android/Sdk`, license present — nothing missing, no `sudo` used.
-- JVM tests `testDebugUnitTest`: 155 total, **153 passed, 2 failed** — `BetaSettingsHelpersTest.worker_setupContract_matchesWorkerCjsEnv` and `WorkerSetupHelpersTest.legacy_singleFileFlowStillWorksAsFallback`, both expect GPU artifact `worker-source` while the server now emits `worker-bundle` (web `f64af5a`). Not a functional Android regression; not fixed per audit-only mandate.
+- APK builds: `./gradlew clean assembleDebug` → `BUILD SUCCESSFUL`. JDK 17, `$HOME/Android/Sdk`, license present — nothing missing, no `sudo` used.
+- JVM tests `testDebugUnitTest`: **158 passed, 0 failed** (incl. new `RepositoryLanguageTest.kt`: ru/ru-RU/en/de → en).
 
 **Reverse parity (Android has, web lacks):** on-device video disk cache (`SimpleDiskCache.kt`, `VideoCache.kt`), on-screen debug overlay (VID-CACHE/VID-LC, unit-switch timeline), `ConnectivityObserver` native network callbacks (web uses `navigator.onLine`), APK/intent/navigation specifics.
 
 **Reverse API parity (web endpoints missing on Android):**
 - `POST /ai/chat/stream` — SSE streamed chat (web `AiAssistantPage.tsx:288`)
 - `POST/GET/PATCH/DELETE /ai-endpoints` + `/:id/share` — LLM Sharing Phase 1 (web `LocalAISection.tsx:398`)
-- `GET/PUT/POST /admin/system-ai` + `/test` — AdminPage system-AI kill-switch (web `AdminPage.tsx`)
-- `POST /private-worker/setup` — private worker setup wizard (web `packages/animastor-web-workers/src/workerSetup.ts:149`)
+- `GET/PUT/POST /admin/system-ai` + `/test` — AdminPage system-AI kill-switch (web `AdminPage.tsx`) — **N/A** (web-only admin).
+- `POST /api/v1/private-worker/setup/plan` + `GET /api/v1/private-worker/setup/*` — private worker setup contract — **PARITY** at `BackendApi.kt:787-820` (was missing in Checkpoint 5 audit).
 
 Everything else in the web API surface (`/book/*`, `/scene/*`, `/connectors/*`, `/workflows/*`, `/ai-connector/*`, `/auth/*`, `/worker/counts`, `/workers`, `/config`, `/settings/ai/*`) has an Android counterpart in `BackendApi.kt`/`Repository.kt`.
 

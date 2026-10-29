@@ -160,8 +160,8 @@ class BetaSettingsHelpersTest {
             workerName = "Home RTX 3090"
         )
         assertEquals("https://app.animastor.org/gpu", c.hubUrl)
-        assertEquals("https://app.animastor.org/gpu/worker-source", c.sourceUrl)
-        assertEquals("curl -o worker.cjs https://app.animastor.org/gpu/worker-source", c.downloadCommand)
+        assertEquals("https://app.animastor.org/gpu/worker-bundle", c.sourceUrl)
+        assertEquals("curl -o worker-bundle.tar.gz https://app.animastor.org/gpu/worker-bundle && tar -xzf worker-bundle.tar.gz && rm worker-bundle.tar.gz", c.downloadCommand)
         assertEquals("node worker.cjs", c.runCommand)
         assertEquals("home-rtx-3090", c.workerId)
 
