@@ -627,7 +627,7 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
                 val bubbleText = if (streamedText.isNotBlank()) streamedText else m.text
                 val finalText = if (bubbleText.isBlank()) getString(R.string.ai_cancelled) else bubbleText
                 messages[idx] = m.copy(streaming = false, cancelled = true, text = finalText)
-                if (streamedText.isNotBlank()) {
+                if (streamedText.isNotEmpty()) {
                     apiMessages.add(AiMessage(role = "assistant", content = streamedText))
                 }
             } else {
@@ -831,7 +831,7 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         hideTypingIndicator()
 
         val errText = stringByKey(streamErrorKey(error.code))
-            ?: (error.message ?: getString(R.string.ai_error, "unknown"))
+            ?: getString(R.string.ai_error, error.message ?: "stream failed")
 
         if (idx >= 0 && idx < messages.size) {
             val m = messages[idx]
@@ -842,7 +842,10 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         } else {
             messages.add(ChatMessage(text = errText, isUser = false, failed = true))
         }
-        apiMessages.add(AiMessage(role = "assistant", content = streamedText))
+        // Web parity: an assistant turn only when something streamed — no empty content.
+        if (streamedText.isNotEmpty()) {
+            apiMessages.add(AiMessage(role = "assistant", content = streamedText))
+        }
         adapter.submitList(messages.toList())
         scrollToBottom()
     }
