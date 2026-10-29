@@ -36,7 +36,8 @@ data class AiChatDone(
 
 data class AiChatError(
     val code: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    val httpStatus: Int? = null
 )
 
 /** Result of applying one SSE frame to the stream state machine. */

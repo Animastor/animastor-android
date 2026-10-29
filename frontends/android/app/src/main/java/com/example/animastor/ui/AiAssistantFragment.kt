@@ -32,6 +32,8 @@ import com.example.animastor.repository.BookData
 import com.example.animastor.repository.ChatSessionApi
 import com.example.animastor.repository.ResourceInvalidations
 import com.example.animastor.repository.ToolCallResult
+import com.example.animastor.repository.resolveLanguage
+import com.example.animastor.repository.AiChatStream
 import com.example.animastor.repository.AiChatStream.sourceBadgeKey
 import com.example.animastor.repository.AiChatStream.streamErrorKey
 import com.example.animastor.repository.unitIndex
@@ -39,6 +41,7 @@ import com.example.animastor.network.AiChatSseClient
 import com.example.animastor.network.RetrofitClient
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
+import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -620,9 +623,17 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
             val idx = assistantMsgIndex
             if (idx >= 0 && idx < messages.size) {
                 val m = messages[idx]
-                messages[idx] = m.copy(streaming = false, cancelled = true)
-                adapter.notifyItemChanged(idx)
+                // Keep partial answer if anything streamed; empty bubble → ai_cancelled.
+                val bubbleText = if (streamedText.isNotBlank()) streamedText else m.text
+                val finalText = if (bubbleText.isBlank()) getString(R.string.ai_cancelled) else bubbleText
+                messages[idx] = m.copy(streaming = false, cancelled = true, text = finalText)
+                if (streamedText.isNotBlank()) {
+                    apiMessages.add(AiMessage(role = "assistant", content = streamedText))
+                }
+            } else {
+                messages.add(ChatMessage(text = getString(R.string.ai_cancelled), isUser = false, cancelled = true))
             }
+            adapter.submitList(messages.toList())
             scrollToBottom()
         }
     }
@@ -655,8 +666,7 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
                 runOnMain { aiSending = false; updateSendButton() }
                 return@launch
             }
-            val lang = requireContext().getSharedPreferences("animastor_settings", 0)
-                .getString("language", "auto")
+            val lang = resolveLanguage(Locale.getDefault().language)
 
             val request = AiChatRequest(
                 apiMessages.toList(),
@@ -686,7 +696,10 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
             scrollToBottom()
 
             aiChatStream.onMeta = { meta ->
-                streamSessionId = meta.sessionId
+                if (sessionAtSend == null && meta.sessionId != null) {
+                    currentSessionId = meta.sessionId
+                    streamSessionId = meta.sessionId
+                }
                 currentSource = meta.aiSource
                 runOnMain {
                     val idx = assistantMsgIndex
@@ -717,7 +730,7 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
 
             aiChatStream.onError = { error ->
                 runOnMain {
-                    handleAiStreamError(error, request, sessionAtSend)
+                    handleAiStreamError(error, sessionAtSend)
                 }
             }
 
@@ -727,7 +740,6 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
                 runOnMain {
                     handleAiStreamError(
                         AiChatError(code = null, message = e.message ?: "stream failed"),
-                        request,
                         sessionAtSend
                     )
                 }
@@ -750,7 +762,12 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         hideTypingIndicator()
 
         val idx = assistantMsgIndex
-        val finalText = if (streamedText.isNotBlank()) streamedText else (done.reply ?: "")
+        // displayText priority: done.reply → streamedText → tool-results message.
+        val finalText = AiChatStream.displayTextFor(
+            done,
+            streamedText,
+            buildToolResultMessage(done.toolResults ?: emptyList(), done.patchesApplied)
+        )
 
         // Save session_id only when backend auto-created it (no session before)
         if (sessionAtSend == null && done.sessionId != null) {
@@ -758,19 +775,28 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
             streamSessionId = done.sessionId
         }
 
-        if (idx >= 0 && idx < messages.size) {
-            val sourceKey = sourceBadgeKey(currentSource)
-            messages[idx] = ChatMessage(
-                text = finalText,
-                isUser = false,
-                streaming = false,
-                source = currentSource,
-                sourceBadge = sourceKey
-            )
-            adapter.notifyItemChanged(idx)
+        val sourceKey = sourceBadgeKey(currentSource)
+        val aiMsg = if (done.bookId != null) {
+            var bookId_ = done.bookId
+            if (bookId_.contains("api/v1/book/")) {
+                bookId_ = bookId_.substringAfterLast("/api/v1/book/").substringBeforeLast("/")
+            }
+            val downloadUrl = "${com.example.animastor.BuildConfig.BASE_URL}api/v1/book/${bookId_}/download"
+            ChatMessage(text = finalText, isUser = false, downloadUrl = downloadUrl,
+                source = currentSource, sourceBadge = sourceKey)
+        } else {
+            ChatMessage(text = finalText, isUser = false, source = currentSource,
+                sourceBadge = sourceKey)
         }
 
-        apiMessages.add(AiMessage(role = "assistant", content = finalText))
+        // Single write of the assistant bubble (keeps source badge).
+        if (idx >= 0 && idx < messages.size) {
+            messages[idx] = aiMsg
+        } else {
+            messages.add(aiMsg)
+        }
+
+        apiMessages.add(AiMessage(role = "assistant", content = done.reply ?: streamedText))
 
         // ── External invalidation: the assistant just mutated the book
         // bundle server-side (patches_applied > 0). Same contract as the
@@ -786,32 +812,12 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
             loadBookDataAsync()
         }
 
-        // Download URL for a generated book (web parity AiAssistantPage)
-        val aiMsg = if (done.bookId != null) {
-            var bookId_ = done.bookId
-            if (bookId_.contains("api/v1/book/")) {
-                bookId_ = bookId_.substringAfterLast("/api/v1/book/").substringBeforeLast("/")
-            }
-            val downloadUrl = "${com.example.animastor.BuildConfig.BASE_URL}api/v1/book/${bookId_}/download"
-            ChatMessage(text = finalText, isUser = false, downloadUrl = downloadUrl,
-                source = currentSource, sourceBadge = sourceBadgeKey(currentSource))
-        } else {
-            ChatMessage(text = finalText, isUser = false, source = currentSource,
-                sourceBadge = sourceBadgeKey(currentSource))
-        }
-        // Replace the streaming bubble with the final one (keeps source badge).
-        if (idx >= 0 && idx < messages.size) {
-            messages[idx] = aiMsg
-        } else {
-            messages.add(aiMsg)
-        }
         adapter.submitList(messages.toList())
         scrollToBottom()
     }
 
-    /** Stream error — fallback to one-shot POST /ai/chat if nothing streamed yet,
-        otherwise mark the bubble failed (web: mid-stream failure keeps partial text). */
-    private fun handleAiStreamError(error: AiChatError, request: AiChatRequest, sessionAtSend: String?) {
+    /** Stream error — mark the bubble failed with the error text (no fallback to one-shot POST /ai/chat). */
+    private fun handleAiStreamError(error: AiChatError, sessionAtSend: String?) {
         if (sessionAtSend != null && currentSessionId != sessionAtSend) {
             aiSending = false
             updateSendButton()
@@ -820,100 +826,24 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         }
 
         val idx = assistantMsgIndex
-        if (streamedText.isEmpty() && idx >= 0 && idx < messages.size) {
-            // Nothing streamed yet: fall back to one-shot POST /ai/chat (web parity).
-            messages.removeAt(idx)
-            assistantMsgIndex = -1
-            fallbackOneShot(request, sessionAtSend)
-            return
-        }
-
-        // Mid-stream failure: keep partial text, mark failed.
         aiSending = false
         updateSendButton()
         hideTypingIndicator()
-        if (idx >= 0 && idx < messages.size) {
-            messages[idx] = messages[idx].copy(streaming = false, failed = true)
-            adapter.notifyItemChanged(idx)
-        }
+
         val errText = stringByKey(streamErrorKey(error.code))
             ?: (error.message ?: getString(R.string.ai_error, "unknown"))
-        messages.add(ChatMessage(text = errText, isUser = false))
+
+        if (idx >= 0 && idx < messages.size) {
+            val m = messages[idx]
+            // Error before first delta → bubble carries the error text.
+            val text = if (streamedText.isNotBlank()) streamedText else errText
+            messages[idx] = m.copy(streaming = false, failed = true, text = text)
+        } else {
+            messages.add(ChatMessage(text = errText, isUser = false, failed = true))
+        }
         apiMessages.add(AiMessage(role = "assistant", content = streamedText))
         adapter.submitList(messages.toList())
         scrollToBottom()
-    }
-
-    /** Fallback one-shot POST /ai/chat when the SSE stream is unavailable. */
-    private fun fallbackOneShot(request: AiChatRequest, sessionAtSend: String?) {
-        lifecycleScope.launch {
-            try {
-                val response = generateViewModel.repository.chatWithAiFull(request)
-
-                // Discard if user switched sessions while waiting
-                if ((sessionAtSend != null && currentSessionId != sessionAtSend) || !isAdded) return@launch
-
-                aiSending = false
-                updateSendButton()
-                hideTypingIndicator()
-
-                if (sessionAtSend == null && response.sessionId != null) {
-                    currentSessionId = response.sessionId
-                }
-
-                apiMessages.add(AiMessage(role = "assistant", content = response.reply))
-
-                val patchedBookId = response.bookId
-                    ?.substringAfterLast("/api/v1/book/")
-                    ?.substringBeforeLast('/')
-                    ?.takeIf { it.isNotBlank() }
-                    ?: request.bookId ?: ""
-                if (response.patchesApplied > 0 && !patchedBookId.isNullOrBlank()) {
-                    ResourceInvalidations.emitExternal(ResourceInvalidations.Keys.book(patchedBookId))
-                    Log.i(TAG, "fallback chat applied ${response.patchesApplied} patch(es)")
-                    loadBookDataAsync()
-                }
-
-                val displayText = if (response.reply.isNotBlank()) {
-                    response.reply
-                } else {
-                    buildToolResultMessage(response.toolResults ?: emptyList(), response.patchesApplied)
-                }
-
-                val aiMsg = if (response.bookId != null) {
-                    var bookId_ = response.bookId
-                    if (bookId_.contains("api/v1/book/")) {
-                        bookId_ = bookId_.substringAfterLast("/api/v1/book/").substringBeforeLast("/")
-                    }
-                    val downloadUrl = "${com.example.animastor.BuildConfig.BASE_URL}api/v1/book/${bookId_}/download"
-                    ChatMessage(text = displayText, isUser = false, downloadUrl = downloadUrl)
-                } else {
-                    ChatMessage(text = displayText, isUser = false)
-                }
-                messages.add(aiMsg)
-
-            } catch (e: Exception) {
-                if (currentSessionId != sessionAtSend || !isAdded) return@launch
-                aiSending = false
-                updateSendButton()
-                hideTypingIndicator()
-                val detailedMessage = if (e is retrofit2.HttpException) {
-                    val bodyText = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
-                    bodyText?.let { raw ->
-                        runCatching { org.json.JSONObject(raw).optString("error") }
-                            .getOrNull()
-                            ?.takeIf { it.isNotBlank() }
-                    } ?: e.message()
-                } else {
-                    e.message ?: "unknown"
-                }
-                messages.add(ChatMessage(text = getString(R.string.ai_error, detailedMessage), isUser = false))
-            }
-            if (isAdded) {
-                adapter.submitList(messages.toList())
-                scrollToBottom()
-            }
-        }
     }
 
 
@@ -995,22 +925,33 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         }
     }
 
-    private fun buildToolResultMessage(toolResults: List<ToolCallResult>, patchesApplied: Int): String {
+    private fun buildToolResultMessage(toolResults: List<Any>?, patchesApplied: Int): String {
         if (patchesApplied > 0) {
             return "✅ Changes applied: $patchesApplied patch(es) to the book."
         }
-        val errors = toolResults.filter { it.error != null }
-        val successes = toolResults.filter { it.result != null || it.applied != null }
-        val parts = mutableListOf<String>()
-        if (errors.isNotEmpty()) {
-            parts.addAll(errors.map { "⚠️ ${it.tool}: ${it.error}" })
+        val errors = mutableListOf<String>()
+        val successes = mutableListOf<String>()
+        for (tr in toolResults ?: emptyList()) {
+            when (tr) {
+                is ToolCallResult -> {
+                    if (tr.error != null) errors.add("⚠️ ${tr.tool}: ${tr.error}")
+                    else if (tr.result != null || tr.applied != null) {
+                        successes.add(if (tr.applied != null && tr.applied > 0) "✅ ${tr.tool}: ${tr.applied} change(s) applied" else "✅ ${tr.tool}: ${tr.result ?: "done"}")
+                    }
+                }
+                is Map<*, *> -> {
+                    val tool = tr["tool"]?.toString() ?: "tool"
+                    val error = tr["error"]
+                    val result = tr["result"]
+                    val applied = tr["applied"]
+                    if (error != null) errors.add("⚠️ $tool: $error")
+                    else if (result != null || applied != null) {
+                        successes.add(if (applied is Number && applied.toInt() > 0) "✅ $tool: ${applied} change(s) applied" else "✅ $tool: ${result ?: "done"}")
+                    }
+                }
+            }
         }
-        if (successes.isNotEmpty()) {
-            parts.addAll(successes.map {
-                if (it.applied != null && it.applied > 0) "✅ ${it.tool}: ${it.applied} change(s) applied"
-                else "✅ ${it.tool}: ${it.result ?: "done"}"
-            })
-        }
+        val parts = errors + successes
         // No patches, no tool results — the model produced nothing usable
         // (e.g. reasoning consumed the whole token budget). Honest retry hint
         // instead of the old misleading 'Tool executed.' ghost message.

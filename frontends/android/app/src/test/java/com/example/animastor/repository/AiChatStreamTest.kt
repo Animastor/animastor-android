@@ -111,4 +111,30 @@ class AiChatStreamTest {
         val res = AiChatStream.parseFrame("event:delta\r\ndata:{\"delta\":\"  spaced  \"}")
         assertEquals("  spaced  ", (res as AiChatStreamResult.Delta).text)
     }
+
+    // ── displayTextFor (web AiAssistantPage onDone priority) ──
+
+    @Test
+    fun displayTextFor_doneReplyWins() {
+        val done = AiChatDone(reply = "Done reply")
+        assertEquals("Done reply", AiChatStream.displayTextFor(done, "streamed", "fallback"))
+    }
+
+    @Test
+    fun displayTextFor_streamedWhenNoReply() {
+        val done = AiChatDone(reply = null)
+        assertEquals("streamed", AiChatStream.displayTextFor(done, "streamed", "fallback"))
+    }
+
+    @Test
+    fun displayTextFor_fallbackWhenNeither() {
+        val done = AiChatDone(reply = null)
+        assertEquals("fallback", AiChatStream.displayTextFor(done, "", "fallback"))
+    }
+
+    @Test
+    fun displayTextFor_emptyReplyTreatedAsMissing() {
+        val done = AiChatDone(reply = "")
+        assertEquals("streamed", AiChatStream.displayTextFor(done, "streamed", "fallback"))
+    }
 }

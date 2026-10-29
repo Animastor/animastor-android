@@ -65,6 +65,16 @@ object AiChatStream {
     fun isUserCancelled(cancelled: Boolean): Boolean = cancelled
 
     // ─────────────────────────────────────────────────────────────────────
+    // displayText priority (web AiAssistantPage onDone)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** displayText priority: done.reply → streamedText → fallback (tool-results message). */
+    fun displayTextFor(done: AiChatDone, streamedText: String, fallback: String): String =
+        if (done.reply?.isNotBlank() == true) done.reply
+        else if (streamedText.isNotBlank()) streamedText
+        else fallback
+
+    // ─────────────────────────────────────────────────────────────────────
     // SSE frame parsing (mirrors web postChatStream frame handling)
     // ─────────────────────────────────────────────────────────────────────
 

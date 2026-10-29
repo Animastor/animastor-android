@@ -79,4 +79,5 @@ dependencies {
 
     // T2.2: reveal-gate unit tests (PlayerGateTest.kt — pure JVM, no device).
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
