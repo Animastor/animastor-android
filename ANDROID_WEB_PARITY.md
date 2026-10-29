@@ -1,5 +1,6 @@
 # ANDROID ↔ WEB PARITY AUDIT
 
+> **Checkpoint 5:** 2026-10-29 · **Commits audited:** web `8169949`..`origin/main` touching `frontends/app/src` or `packages/*/src` (50 commits) / android → `audit/parity-checkpoint-5` · full report: /home/animastor/reports/2026-10-29/android-parity-audit.md
 > **Checkpoint 4:** 2026-09-02 · **Commits audited:** web `5cb3b4b5`, `d48d1fd0`, `d0097df4`, `8bf3a13c` / android → this commit
 > **Checkpoint 3:** 2026-08-31 · **Commits audited:** web `443559b8` .. `f661a922` / android → this commit
 > **Checkpoint 2:** 2026-08-28 · **Commits audited:** web `25796bb` .. `101a802c` / android → this commit
@@ -7,7 +8,44 @@
 
 ---
 
-## Checkpoint 4 — Worker Sharing V2 (SH-2, web `5cb3b4b5`)
+## Checkpoint 5 (audit) — 2026-10-29 · web `8169949`..`origin/main`
+
+Scope: all web commits after `8169949` (2026-09-02) touching `frontends/app/src` or `packages/*/src` — 85 commits total, 50 with changes in those paths. Clean refactors/tests/docs/package-only commits marked N/A. Full matrix and evidence: `/home/animastor/reports/2026-10-29/android-parity-audit.md`.
+
+**Mandatory checks:**
+
+| Web commit | Change (user-visible) | Android evidence | Status |
+|---|---|---|---|
+| `882bda4` feat(ai-sharing): Phase 1 control plane | «Share this AI» — `/ai-endpoints` CRUD + `/:id/share`, LocalAISection UI, i18n `share_ai_*` | Android: no `/ai-endpoints` in `BackendApi.kt`; no sharing UI in `LocalAiSettingsFragment` | **GAP** |
+| `f2c9947` feat(ai-sharing): Phase 2 consumer resolver | Shared-AI pool in provider resolver chain (backend; user-visible effect in Phase 3) | Android client has no shared-pool calls | **GAP** |
+| `5adf112` feat(ai-sharing): Phase 3 production SSE and UX | Chat via SSE `/ai/chat/stream`, source badge (Private/Shared/Cloud/System), stop button, streaming/cancelled/failed states | `AiAssistantFragment.kt` uses one-shot `POST /ai/chat`; no source badge, no stop button, no `ai_source_*`/`ai_state_*` strings | **GAP (partial)** — base chat PARITY, streaming UX missing |
+| `1d30903` feat(ai-connector): Local AI Connector V1 Phase 6 — UI integration | `/settings/local-ai` screen: create connector, Online/Offline/Pending pill, Refresh Models, bind provider, test, rotate/revoke, one-time token modal | `LocalAiSettingsFragment.kt` (whole screen), `LocalAiHelpers.kt`, `ConnectorModels.kt`, `BackendApi.kt` `/ai-connector/*` — all calls present | **PARITY** |
+| `4c04ee5` fix(ai-connector): correct stale connector online status | Online status from authoritative `live` flag, not stale PG `status` | `LocalAiHelpers.statusKey(status, live)` — `live` → Online; fragment lines 182-183, 311-313 | **PARITY** |
+| `b68f2b8` test(ai-connector): Phase 7 hardening | LocalAISection hardening | Reflected in `LocalAiSettingsFragment` | **PARITY** |
+| `4166cc9` feat(web): invalidation pipeline parity | Reactive UI after external book mutations: `book:<id>` invalidation bus, cache evict → re-fetch; AI Assistant patches (`patches_applied > 0`) | `ResourceInvalidations.kt` (EXTERNAL/LOCAL, `Keys.book`), `ResilientReloader.kt`, `AiAssistantFragment.kt:639` emits external invalidation | **PARITY** |
+| `936580c` / `c39b69d` / `dfd191d` Character Behavior pass 1 + schema v2 + v2.1 | Manual Behavior editor + `behavior.json` keyed by character_id; baseline/quirks/reactions; `instruction` dropped | `EditFragment.kt:880-897` `showAddBehaviorDialog`; `Repository.createBehavior/patchBehavior/deleteBehavior`; `BookModels.kt:180-198` `BehaviorEntry`/`BehaviorReaction` (no `instruction`) | **PARITY** |
+| `3609852` feat(ui): dim + disable future-feature assistant modes | Director/Import/Extract/Validate chips visible but dimmed + disabled (`soon`), never send a request | `AssistantMode.kt` — `soon = true` for 4 modes, `getById` falls back to Conversation, disabled chip | **PARITY** |
+| `d0b672d` fix: AI chat reliability, mode/tool policy, session CRUD parity | PATCH/DELETE `/ai/sessions/:id` (rename/delete), 504 handling, honest no-result | `BackendApi.kt`: `updateSession` (PATCH), `deleteSession` (DELETE), `listSessions`, `createSession`, `getSessionMessages`; `Repository.kt:374-389` | **PARITY** |
+| `38c59ad` feat(blank-book): send UI language in POST /book/blank | New blank book sends `{ language: resolveLanguage() }` instead of hardcoded `title: 'Новая книга'` | `Repository.kt:313`: `api.createBlankBook(mapOf("title" to "Новая книга"))` — language not sent | **GAP** |
+| `cc33ecc` feat(workers): compact rotate-key button + header cleanup | Rotate key button (icon + short label), removed duplicate card title | Android commit `3ec4008` (same change, `PrivateWorkersFragment.kt` +1 line) — already merged | **PARITY** |
+| `AdminPage` (expected N/A) | System AI admin page (`/admin/system-ai` kill-switch) | No admin screen, no `/admin/*` endpoints on Android | **N/A (web-only)** |
+
+**All other web commits after `8169949`** touching `frontends/app/src` or `packages/*/src` (file extraction, package audits, contour guards, player/worker/navigator extraction, post-split cleanup, docs): user-visible behavior unchanged → **N/A**. Exception `f64af5a` (removed deprecated `/worker-source`) — reflected in the 2 JVM-test failures below.
+
+**Build:**
+- APK builds: `./gradlew clean assembleDebug` → `BUILD SUCCESSFUL` (5m 14s). Caveat: `frontends/android/gradlew` references missing `gradle-8.12/`; build run via `/home/animastor/.gradle/wrapper/dists/gradle-8.12-bin/*/gradle-8.12/bin/gradle`. JDK 17, `$HOME/Android/Sdk`, license present — nothing missing, no `sudo` used.
+- JVM tests `testDebugUnitTest`: 155 total, **153 passed, 2 failed** — `BetaSettingsHelpersTest.worker_setupContract_matchesWorkerCjsEnv` and `WorkerSetupHelpersTest.legacy_singleFileFlowStillWorksAsFallback`, both expect GPU artifact `worker-source` while the server now emits `worker-bundle` (web `f64af5a`). Not a functional Android regression; not fixed per audit-only mandate.
+
+**Reverse parity (Android has, web lacks):** on-device video disk cache (`SimpleDiskCache.kt`, `VideoCache.kt`), on-screen debug overlay (VID-CACHE/VID-LC, unit-switch timeline), `ConnectivityObserver` native network callbacks (web uses `navigator.onLine`), APK/intent/navigation specifics.
+
+**Reverse API parity (web endpoints missing on Android):**
+- `POST /ai/chat/stream` — SSE streamed chat (web `AiAssistantPage.tsx:288`)
+- `POST/GET/PATCH/DELETE /ai-endpoints` + `/:id/share` — LLM Sharing Phase 1 (web `LocalAISection.tsx:398`)
+- `GET/PUT/POST /admin/system-ai` + `/test` — AdminPage system-AI kill-switch (web `AdminPage.tsx`)
+- `POST /private-worker/setup` — private worker setup wizard (web `packages/animastor-web-workers/src/workerSetup.ts:149`)
+
+Everything else in the web API surface (`/book/*`, `/scene/*`, `/connectors/*`, `/workflows/*`, `/ai-connector/*`, `/auth/*`, `/worker/counts`, `/workers`, `/config`, `/settings/ai/*`) has an Android counterpart in `BackendApi.kt`/`Repository.kt`.
+
 
 Web commits audited (Worker Sharing UX layer series):
 
