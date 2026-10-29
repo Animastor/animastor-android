@@ -1,6 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+// Release signing: env ANIMASTOR_SIGNING_PROPS → path to a signing.properties
+// (storeFile, storePassword, keyAlias, keyPassword). The keystore lives outside
+// the repo (prod: /home/animastor/prod/secrets/android/). Without it release
+// builds fail with a clear error; debug builds are unaffected.
+val signingPropsPath: String? = System.getenv("ANIMASTOR_SIGNING_PROPS")?.takeIf { it.isNotBlank() }
+val signingProps: Properties? = signingPropsPath
+    ?.let { file(it) }
+    ?.takeIf { it.isFile }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
+val signingPropsError: String? = when {
+    signingPropsPath == null -> "ANIMASTOR_SIGNING_PROPS is not set"
+    signingProps == null -> "ANIMASTOR_SIGNING_PROPS=$signingPropsPath: file not found"
+    listOf("storeFile", "storePassword", "keyAlias", "keyPassword").any { signingProps.getProperty(it).isNullOrBlank() } ->
+        "$signingPropsPath: storeFile, storePassword, keyAlias and keyPassword are required"
+    else -> null
 }
 
 android {
@@ -11,18 +30,24 @@ android {
         applicationId = "com.example.animastor"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
     }
 
     val baseUrl = project.findProperty("BASE_URL") as? String ?: "https://app.animastor.org/"
 
     signingConfigs {
-        create("release") {
-            storeFile = file("../release-key.jks")
-            storePassword = project.findProperty("RELEASE_STORE_PASSWORD") as? String ?: ""
-            keyAlias = project.findProperty("RELEASE_KEY_ALIAS") as? String ?: ""
-            keyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as? String ?: ""
+        if (signingPropsError == null) {
+            val props = signingProps!!
+            create("release") {
+                // storeFile: absolute, or relative to the signing.properties file.
+                storeFile = file(props.getProperty("storeFile")).let {
+                    if (it.isAbsolute) it else File(file(signingPropsPath!!).parentFile, props.getProperty("storeFile"))
+                }
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
         }
     }
 
@@ -38,7 +63,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
             buildConfigField("String", "BASE_URL", "\"${baseUrl}\"")
         }
     }
@@ -80,4 +105,17 @@ dependencies {
     // T2.2: reveal-gate unit tests (PlayerGateTest.kt — pure JVM, no device).
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+}
+
+// No silently unsigned release APKs: fail release packaging with a clear message.
+if (signingPropsError != null) {
+    tasks.matching { it.name == "packageRelease" || it.name == "bundleRelease" }.configureEach {
+        doFirst {
+            throw GradleException(
+                "Release signing is not configured: $signingPropsError. " +
+                    "Set ANIMASTOR_SIGNING_PROPS to a signing.properties " +
+                    "(storeFile, storePassword, keyAlias, keyPassword). Debug builds need nothing."
+            )
+        }
+    }
 }

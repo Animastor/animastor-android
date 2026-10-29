@@ -26,3 +26,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Signing material (lives in prod/secrets, never in git)
+*.jks
+*.keystore
+signing.properties
