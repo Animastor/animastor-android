@@ -460,7 +460,7 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
                     Log.e(TAG, "Failed to load session list", e)
                     if (isAdded) {
                         try {
-                            android.widget.Toast.makeText(requireContext(), R.string.ai_error, android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(requireContext(), getString(R.string.ai_error, e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_SHORT).show()
                         } catch (_: Exception) {}
                     }
                 }.getOrDefault(emptyList())
