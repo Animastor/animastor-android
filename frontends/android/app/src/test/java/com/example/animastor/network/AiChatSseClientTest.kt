@@ -1,9 +1,14 @@
 package com.example.animastor.network
 
 import com.example.animastor.repository.AiChatRequest
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.internal.http2.Http2Stream
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.internal.duplex.DuplexResponseBody
+import okio.buffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -41,51 +46,65 @@ class AiChatSseClientTest {
     private fun awaitLatch(latch: CountDownLatch, timeoutMs: Long = 5000): Boolean =
         latch.await(timeoutMs, TimeUnit.MILLISECONDS)
 
-    // ── Streaming: first onDelta must arrive BEFORE the server finishes (done) ──
+    // ── Streaming, provably: the server sends a delta frame, then HOLDS the rest
+    // of the body until the test has observed onDelta. A client that buffers the
+    // body (rb.string(), BODY logging) can never see the delta → times out. ──
+    // MockWebServer can only pause mid-body via DuplexResponseBody, which is
+    // HTTP/2-only, hence H2_PRIOR_KNOWLEDGE on both ends for this test.
     @Test
-    fun streaming_dispatchesDeltaBeforeDone() {
-        val body =
-            "event:meta\ndata:{\"session_id\":\"s1\",\"ai_source\":\"private-local\"}\n\n" +
-                "event:delta\ndata:{\"delta\":\"Hello\"}\n\n" +
-                "event:delta\ndata:{\"delta\":\" World\"}\n\n" +
-                "event:done\ndata:{\"reply\":\"Hello World\",\"session_id\":\"s1\"}\n\n"
-        server.enqueue(
+    fun streaming_deltaArrivesWhileServerHoldsDone() {
+        val release = CountDownLatch(1)
+        val h2Server = MockWebServer().apply { protocols = listOf(Protocol.H2_PRIOR_KNOWLEDGE) }
+        h2Server.enqueue(
             MockResponse()
+                // MockResponse() defaults to Content-Length: 0; the duplex body is open-ended.
+                .removeHeader("Content-Length")
                 .setHeader("Content-Type", "text/event-stream")
-                // Slow delivery so OkHttp sees the body incrementally and the client
-                // dispatches frames as they complete rather than all at once.
-                .throttleBody(32, 32, TimeUnit.MILLISECONDS)
-                .setBody(body)
+                .setBody(object : DuplexResponseBody {
+                    override fun onRequest(request: RecordedRequest, http2Stream: Http2Stream) {
+                        http2Stream.getSink().buffer().use { sink ->
+                            sink.writeUtf8("event:meta\ndata:{\"session_id\":\"s1\",\"ai_source\":\"private-local\"}\n\n")
+                            sink.writeUtf8("event:delta\ndata:{\"delta\":\"Hello\"}\n\n")
+                            sink.flush()
+                            // Released by the test only after onDelta was received.
+                            release.await(10, TimeUnit.SECONDS)
+                            sink.writeUtf8("event:done\ndata:{\"reply\":\"Hello\",\"session_id\":\"s1\"}\n\n")
+                        }
+                    }
+                })
         )
+        h2Server.start()
+        try {
+            val h2Client = OkHttpClient.Builder()
+                .protocols(listOf(Protocol.H2_PRIOR_KNOWLEDGE))
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build()
+            val sse = AiChatSseClient(h2Client, h2Server.url("/").toString().trimEnd('/'))
+            val deltaLatch = CountDownLatch(1)
+            val doneLatch = CountDownLatch(1)
+            val errors = AtomicInteger(0)
+            var deltaText: String? = null
+            var doneReply: String? = null
+            sse.onDelta = { deltaText = it; deltaLatch.countDown() }
+            sse.onDone = { doneReply = it.reply; doneLatch.countDown() }
+            sse.onError = { errors.incrementAndGet() }
+            sse.start(AiChatRequest(emptyList()))
 
-        val metaCount = AtomicInteger(0)
-        val deltaTimes = mutableListOf<Long>()
-        var doneReply: String? = null
-        val deltaLatch = CountDownLatch(1)
-        val doneLatch = CountDownLatch(1)
-        val errorLatch = CountDownLatch(1)
-        val onError = AtomicInteger(0)
-        val sse = newClient()
-        sse.onMeta = { metaCount.incrementAndGet() }
-        sse.onDelta = { deltaTimes.add(System.nanoTime()); deltaLatch.countDown() }
-        sse.onDone = { doneReply = it.reply; doneLatch.countDown() }
-        sse.onError = { e -> onError.incrementAndGet(); errorLatch.countDown() }
-        sse.start(AiChatRequest(emptyList()))
+            assertTrue(
+                "onDelta did not arrive while the server was holding the done frame — body is buffered, not streamed",
+                awaitLatch(deltaLatch, 3000)
+            )
+            assertEquals("Hello", deltaText)
+            assertEquals("done must not arrive before the server is released", 1L, doneLatch.count)
 
-        // First delta must arrive while the server is still streaming.
-        val deltaFirst = awaitLatch(deltaLatch)
-        val errorFirst = awaitLatch(errorLatch, 1000)
-        System.out.println("DEBUG streaming meta=$metaCount deltas=${deltaTimes.size} errors=$onError deltaFirst=$deltaFirst errorFirst=$errorFirst")
-        assertTrue("first delta never arrived (meta=$metaCount errors=$onError)", deltaFirst)
-        val firstDelta = deltaTimes.first()
-        assertEquals(0, onError.get())
-
-        // done must arrive strictly after the first delta (proves incremental dispatch).
-        assertTrue("done never arrived", awaitLatch(doneLatch))
-        val done = System.nanoTime()
-        assertEquals("Hello World", doneReply)
-        assertTrue("done must follow first delta ($firstDelta >= $done)", firstDelta < done)
-        assertEquals(0, onError.get())
+            release.countDown()
+            assertTrue("done never arrived", awaitLatch(doneLatch))
+            assertEquals("Hello", doneReply)
+            assertEquals(0, errors.get())
+        } finally {
+            release.countDown()
+            h2Server.shutdown()
+        }
     }
 
     // ── HTTP 503 with a JSON error body → onError(code, httpStatus=503) ──
@@ -115,37 +134,38 @@ class AiChatSseClientTest {
         assertEquals(503, httpStatus)
     }
 
-    // ── Cancel mid-stream: no handlers after cancel ──
+    // ── Cancel mid-stream (after the first delta): no handlers after cancel ──
     @Test
     fun cancel_midStream_noHandlersAfterCancel() {
-        val body =
-            "event:delta\ndata:{\"delta\":\"Hello\"}\n\n" +
-                "event:delta\ndata:{\"delta\":\" World\"}\n\n" +
-                "event:done\ndata:{\"reply\":\"Hello World\"}\n\n"
+        val first = "event:delta\ndata:{\"delta\":\"Hello\"}\n\n"
+        val body = first +
+            "event:delta\ndata:{\"delta\":\" World\"}\n\n" +
+            "event:done\ndata:{\"reply\":\"Hello World\"}\n\n"
         server.enqueue(
             MockResponse()
                 .setHeader("Content-Type", "text/event-stream")
-                .throttleBody(16, 32, TimeUnit.MILLISECONDS)
+                // First frame goes out at once, the rest 500 ms later.
+                .throttleBody(first.length.toLong(), 500, TimeUnit.MILLISECONDS)
                 .setBody(body)
         )
         val deltaCount = AtomicInteger(0)
         val doneCount = AtomicInteger(0)
         val errorCount = AtomicInteger(0)
+        val firstDelta = CountDownLatch(1)
         val sse = newClient()
-        sse.onDelta = { deltaCount.incrementAndGet() }
+        sse.onDelta = { deltaCount.incrementAndGet(); firstDelta.countDown() }
         sse.onDone = { doneCount.incrementAndGet() }
         sse.onError = { errorCount.incrementAndGet() }
         sse.start(AiChatRequest(emptyList()))
 
-        // Let headers arrive and rb.string() start blocking on the body, then cancel
-        // mid-stream. The cancelled read must swallow silently — no handler at all.
-        Thread.sleep(100)
+        assertTrue("first delta never arrived", awaitLatch(firstDelta, 3000))
         sse.cancel()
-        Thread.sleep(500)
+        // Wait past the moment the rest of the body would have arrived.
+        Thread.sleep(1000)
 
-        assertEquals(0, deltaCount.get())   // no delta dispatched before cancel
+        assertEquals(1, deltaCount.get())   // nothing dispatched after cancel
         assertEquals(0, doneCount.get())    // no done after cancel
-        assertEquals(0, errorCount.get())   // no error after cancel
+        assertEquals(0, errorCount.get())   // post-cancel read failure swallowed
     }
 
     // ── done → EOF: exactly one onDone ──
@@ -190,6 +210,30 @@ class AiChatSseClientTest {
         assertEquals(1, onError.get())
         assertEquals(0, onDone.get())
         assertEquals("timeout", errCode)
+    }
+
+    // ── Last frame without the closing blank line is dispatched at EOF ──
+    @Test
+    fun trailingFrameAtEOF_isDispatched() {
+        server.enqueue(
+            MockResponse()
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody("event:delta\ndata:{\"delta\":\"A\"}\n\nevent:done\ndata:{\"reply\":\"A!\"}")
+        )
+        val deltas = mutableListOf<String>()
+        var doneReply: String? = null
+        val onDone = AtomicInteger(0)
+        val latch = CountDownLatch(1)
+        val sse = newClient()
+        sse.onDelta = { deltas.add(it) }
+        sse.onDone = { doneReply = it.reply; onDone.incrementAndGet(); latch.countDown() }
+        sse.onError = { latch.countDown() }
+        sse.start(AiChatRequest(emptyList()))
+
+        assertTrue(awaitLatch(latch))
+        assertEquals(listOf("A"), deltas)
+        assertEquals("A!", doneReply)
+        assertEquals(1, onDone.get())
     }
 
     // ── parseErrorBody unit tests ──

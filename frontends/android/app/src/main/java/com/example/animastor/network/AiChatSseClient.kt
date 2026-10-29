@@ -11,6 +11,7 @@ import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okio.BufferedSource
 
 /**
  * SSE client for POST /api/v1/ai/chat/stream (LLM Sharing Phase 3).
@@ -20,15 +21,17 @@ import okhttp3.RequestBody
  * Performs a manual OkHttp call so HTTP errors (non-2xx) are inspected and
  * surfaced via [onError] with the sanitized backend code + HTTP status —
  * exactly like the web client (which reads the error body on !res.ok).
- * On 2xx, the text/event-stream body is split into frames on '\n\n' and each
- * complete frame is dispatched to its handler immediately (manual parsing of
- * the body, the variant permitted when incremental source reading does not
- * dispatch frames reliably in this OkHttp + MockWebServer env).
+ * On 2xx, the text/event-stream body is read line by line from
+ * `rb.source()`; an empty line ends a frame, which is dispatched immediately
+ * (web: postChatStream reader loop). A trailing frame at EOF is dispatched too.
+ *
+ * [httpClient] must not carry a BODY-level HttpLoggingInterceptor — in OkHttp
+ * 4.x it buffers the whole body before returning it (use
+ * RetrofitClient.streamHttpClient).
  *
  * Terminality guarantee: exactly one terminal call (onDone or onError) per
- * stream. Once done/error is delivered, [terminal] is set before invoking the
- * handler so no second terminal call can fire. Cancel invokes no handler and
- * any exception after cancel is swallowed silently.
+ * stream. Each [start] gets its own [StreamState], so a cancelled/superseded
+ * stream can never fire handlers; exceptions after cancel are swallowed.
  */
 class AiChatSseClient(
     private val httpClient: OkHttpClient,
@@ -37,9 +40,12 @@ class AiChatSseClient(
 
     private val gson: Gson = Gson()
 
-    private var call: okhttp3.Call? = null
-    @Volatile private var isActive = false
-    @Volatile private var terminal = false
+    /** Per-stream state: [live] is false once the stream is cancelled or terminal. */
+    private class StreamState(val call: okhttp3.Call) {
+        @Volatile var live = true
+    }
+
+    @Volatile private var current: StreamState? = null
 
     /** Handlers set by the caller before [start]. */
     var onMeta: ((AiChatMeta) -> Unit)? = null
@@ -50,8 +56,6 @@ class AiChatSseClient(
     /** Start a stream for [request]. Stops any previous stream first. */
     fun start(request: AiChatRequest) {
         cancel()
-        isActive = true
-        terminal = false
 
         val body = RequestBody.create(null, gson.toJson(request))
         val req = Request.Builder()
@@ -61,114 +65,86 @@ class AiChatSseClient(
             .header("Accept", "text/event-stream")
             .build()
 
-        call = httpClient.newCall(req)
-        call?.enqueue(object : okhttp3.Callback {
+        val state = StreamState(httpClient.newCall(req))
+        current = state
+        state.call.enqueue(object : okhttp3.Callback {
             override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
                 // Cancelled / superseded streams fire no handler.
-                if (!isActive || terminal) return
-                terminal = true
-                isActive = false
-                onError?.invoke(AiChatError(code = null, message = e.message ?: "stream failed", httpStatus = null))
+                terminate(state) { onError?.invoke(AiChatError(code = null, message = e.message ?: "stream failed", httpStatus = null)) }
             }
 
             override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
-                if (!isActive || terminal) {
-                    response.close()
-                    return
-                }
-                try {
-                    deliverResponse(response)
-                } catch (e: Exception) {
-                    // Cancelled / superseded streams fire no handler; report
-                    // genuine failures exactly once.
-                    if (!terminal) {
-                        terminal = true
-                        isActive = false
-                        response.close()
-                        onError?.invoke(AiChatError(code = null, message = e.message ?: "response failed", httpStatus = response.code))
-                    } else {
-                        response.close()
-                    }
-                } finally {
-                    if (!terminal) {
-                        terminal = true
-                        isActive = false
+                response.use {
+                    try {
+                        deliverResponse(state, it)
+                    } catch (e: Exception) {
+                        // After cancel the read fails — swallow silently; report
+                        // genuine failures exactly once.
+                        terminate(state) { onError?.invoke(AiChatError(code = null, message = e.message ?: "response failed", httpStatus = it.code)) }
                     }
                 }
             }
         })
     }
 
+    /** Marks [state] terminal and runs [handler] only if it was still live (exactly-once). */
+    private inline fun terminate(state: StreamState, handler: () -> Unit) {
+        synchronized(state) {
+            if (!state.live) return
+            state.live = false
+        }
+        handler()
+    }
+
     /** Handles a single response: HTTP errors → onError, 2xx → frame dispatch. */
-    private fun deliverResponse(response: okhttp3.Response) {
+    private fun deliverResponse(state: StreamState, response: okhttp3.Response) {
+        if (!state.live) return
+        val rb = response.body
         if (!response.isSuccessful) {
             val httpStatus = response.code
             var error = AiChatError(code = null, message = "HTTP $httpStatus", httpStatus = httpStatus)
-            val rb = response.body
             if (rb != null) {
                 try {
                     error = parseErrorBody(rb.string()).copy(httpStatus = httpStatus)
                 } catch (_: Exception) {
                     // ignore unparseable body — keep transport message
                 }
-                rb.close()
             }
-            response.close()
-            terminal = true
-            isActive = false
-            onError?.invoke(error)
+            terminate(state) { onError?.invoke(error) }
             return
         }
-
-        val rb = response.body
         if (rb == null) {
-            terminal = true
-            isActive = false
-            response.close()
-            onError?.invoke(AiChatError(code = null, message = "empty response", httpStatus = response.code))
+            terminate(state) { onError?.invoke(AiChatError(code = null, message = "empty response", httpStatus = response.code)) }
             return
         }
-
-        // Manual SSE parsing of the text/event-stream body (web: postChatStream splits on '\n\n').
-        try {
-            readSseEvents(rb.string())
-        } finally {
-            rb.close()
-            response.close()
-        }
+        readSseEvents(state, rb.source())
     }
 
-    /** Reads SSE frames line-by-line from the body and dispatches each as it completes (web: postChatStream chunk loop / manual parsing of the body). */
-    private fun readSseEvents(body: String) {
-        val frame = mutableListOf<String>()
-        for (line in body.lines()) {
-            if (!isActive || terminal) return
-            if (line.isBlank()) {
+    /** Reads SSE frames line by line and dispatches each as soon as its blank line arrives. */
+    private fun readSseEvents(state: StreamState, source: BufferedSource) {
+        val frame = StringBuilder()
+        while (state.live) {
+            val line = source.readUtf8Line() ?: break
+            if (line.isEmpty()) {
                 // Empty line = end of frame → dispatch immediately.
-                dispatchFrame(frame.joinToString("\n"))
-                frame.clear()
+                dispatchFrame(state, frame.toString())
+                frame.setLength(0)
             } else {
-                frame.add(line)
+                if (frame.isNotEmpty()) frame.append('\n')
+                frame.append(line)
             }
         }
         // Rest after EOF = last frame (web: if (buffer.trim()) handleFrame(buffer)).
-        if (isActive && !terminal && frame.isNotEmpty()) {
-            dispatchFrame(frame.joinToString("\n"))
-        }
+        if (frame.isNotEmpty()) dispatchFrame(state, frame.toString())
         // Stream ended normally without a done frame → empty done payload.
-        if (isActive && !terminal) {
-            terminal = true
-            isActive = false
-            onDone?.invoke(AiChatDone())
-        }
+        terminate(state) { onDone?.invoke(AiChatDone()) }
     }
 
     /** Parses one accumulated SSE frame block and dispatches it to its handler. */
-    private fun dispatchFrame(block: String) {
-        if (!isActive || terminal) return
+    private fun dispatchFrame(state: StreamState, block: String) {
+        if (!state.live) return
         if (block.isBlank()) return
-        val result = AiChatStream.parseFrame(block)
-        when (result) {
+        when (val result = AiChatStream.parseFrame(block)) {
             is AiChatStreamResult.Meta -> {
                 val dataLine = block.lines().firstOrNull { it.startsWith("data:") } ?: return
                 val obj = gson.fromJson(dataLine.substringAfter("data:"), Any::class.java) as? Map<*, *>
@@ -178,16 +154,8 @@ class AiChatSseClient(
                 ))
             }
             is AiChatStreamResult.Delta -> onDelta?.invoke(result.text)
-            is AiChatStreamResult.Done -> {
-                terminal = true
-                isActive = false
-                onDone?.invoke(result.done)
-            }
-            is AiChatStreamResult.Error -> {
-                terminal = true
-                isActive = false
-                onError?.invoke(result.error)
-            }
+            is AiChatStreamResult.Done -> terminate(state) { onDone?.invoke(result.done) }
+            is AiChatStreamResult.Error -> terminate(state) { onError?.invoke(result.error) }
             AiChatStreamResult.Skip -> {}
         }
     }
@@ -210,9 +178,9 @@ class AiChatSseClient(
 
     /** Cancel the in-flight stream. Safe to call multiple times. Invokes no handler. */
     fun cancel() {
-        terminal = true
-        isActive = false
-        call?.cancel()
-        call = null
+        val state = current ?: return
+        current = null
+        synchronized(state) { state.live = false }
+        state.call.cancel()
     }
 }

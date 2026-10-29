@@ -90,7 +90,7 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
     private var bookDataLoadAttempted = false
 
     // ── AI chat streaming (LLM Sharing Phase 3, web parity AiAssistantPage) ──
-    private val aiChatStream by lazy { AiChatSseClient(RetrofitClient.httpClient) }
+    private val aiChatStream by lazy { AiChatSseClient(RetrofitClient.streamHttpClient) }
     private var aiSending = false
     private var streamedText = ""
     private var currentSource: String? = null
@@ -835,8 +835,9 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
 
         if (idx >= 0 && idx < messages.size) {
             val m = messages[idx]
-            // Error before first delta → bubble carries the error text.
-            val text = if (streamedText.isNotBlank()) streamedText else errText
+            // Mid-stream failure: partial answer stays, error note appended
+            // below it (web: `${m.text}\n\n${msg}`); before first delta → error text only.
+            val text = if (streamedText.isNotBlank()) "$streamedText\n\n$errText" else errText
             messages[idx] = m.copy(streaming = false, failed = true, text = text)
         } else {
             messages.add(ChatMessage(text = errText, isUser = false, failed = true))

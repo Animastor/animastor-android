@@ -28,8 +28,15 @@ object RetrofitClient {
     }
 
     val httpClient: OkHttpClient by lazy {
+        // BODY logging only in debug builds. Note: in OkHttp 4.x a BODY-level
+        // interceptor reads the whole response body (source.request(Long.MAX_VALUE))
+        // before returning it — streaming endpoints must use [streamHttpClient].
         val logging = HttpLoggingInterceptor { msg -> Log.i("HTTP", msg) }
-        logging.level = HttpLoggingInterceptor.Level.BODY
+        logging.level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
+            else HttpLoggingInterceptor.Level.NONE
+        logging.redactHeader("Cookie")
+        logging.redactHeader("Set-Cookie")
+        logging.redactHeader("Authorization")
 
         OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -39,6 +46,17 @@ object RetrofitClient {
             .retryOnConnectionFailure(true)
             .cookieJar(cookieJar)
             .addInterceptor(logging)
+            .build()
+    }
+
+    /**
+     * Client for SSE / streamed responses (AI chat stream, progress stream):
+     * same cookie jar, timeouts and connection pool as [httpClient], but without
+     * HttpLoggingInterceptor, which would buffer the body until EOF.
+     */
+    val streamHttpClient: OkHttpClient by lazy {
+        httpClient.newBuilder()
+            .apply { interceptors().removeAll { it is HttpLoggingInterceptor } }
             .build()
     }
 

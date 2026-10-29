@@ -167,7 +167,7 @@ class ProgressStream(
             .header("Accept", "text/event-stream")
             .build()
 
-        val factory = EventSources.createFactory(RetrofitClient.httpClient)
+        val factory = EventSources.createFactory(RetrofitClient.streamHttpClient)
         eventSource = factory.newEventSource(request, object : EventSourceListener() {
 
             override fun onOpen(eventSource: EventSource, response: Response) {
