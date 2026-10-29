@@ -66,7 +66,25 @@
     <string name="ai_session_delete_confirm">Delete this chat?</string>
     <string name="ai_input_hint">Type a message…</string>
     <string name="ai_send">Send</string>
+    <string name="ai_cancel">Stop</string>
     <string name="ai_mic">Voice input</string>
+    <!-- AI source badge (honest, safe token only — never endpoint/owner detail) -->
+    <string name="ai_source_private">Private AI</string>
+    <string name="ai_source_shared">Shared AI</string>
+    <string name="ai_source_cloud">Cloud AI</string>
+    <string name="ai_source_system">System AI</string>
+    <!-- Honest streaming terminal states -->
+    <string name="ai_state_streaming">Typing…</string>
+    <string name="ai_state_unavailable">AI is currently unavailable — no provider configured or system AI disabled</string>
+    <string name="ai_state_local_not_ready">Local AI is not ready — select a connector and a model in Settings</string>
+    <string name="ai_state_shared_unavailable">Shared AI is not available right now</string>
+    <string name="ai_state_offline">Local AI is offline</string>
+    <string name="ai_state_runtime_unreachable">Local runtime is not reachable</string>
+    <string name="ai_state_timeout">AI did not answer in time. Please try again later.</string>
+    <string name="ai_state_busy">AI is busy — try again shortly</string>
+    <string name="ai_state_model_not_found">Model not found on the local runtime</string>
+    <string name="ai_state_stream_failed">Stream failed after partial output</string>
+    <string name="ai_cancelled">Generation stopped</string>
     <string name="ai_welcome">Hello! I\'m Animastor, your intelligent assistant for creating interactive books. How can I help you with your project today?</string>
     <string name="ai_download_book">Download vbook</string>
     <string name="ai_placeholder">I understand your request. This feature is coming soon!</string>

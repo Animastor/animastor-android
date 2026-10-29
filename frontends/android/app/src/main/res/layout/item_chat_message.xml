@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:android="http://schemas/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:paddingVertical="3dp"
@@ -11,10 +11,25 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content">
 
+        <!-- Source badge (Private AI / Shared AI / Cloud AI / System AI) —
+             honest safe token only, never endpoint or owner detail. -->
+        <TextView
+            android:id="@+id/sourceBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textAllCaps="true"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/bubble"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
             android:paddingHorizontal="14dp"
             android:paddingVertical="10dp"
             android:paddingBottom="36dp"
@@ -24,6 +39,17 @@
             android:maxWidth="280dp"
             android:textIsSelectable="true"
             android:textColor="?attr/colorOnSurface" />
+
+        <!-- Streaming / terminal state line (Typing… / Generation stopped / error). -->
+        <TextView
+            android:id="@+id/stateLine"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="11sp"
+            android:textStyle="italic"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/copyButton"

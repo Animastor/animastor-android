@@ -7,7 +7,13 @@ data class ChatMessage(
     val text: String,
     val isUser: Boolean,
     val downloadUrl: String? = null,
-    val isTyping: Boolean = false
+    val isTyping: Boolean = false,
+    // ── Streaming state (LLM Sharing Phase 3, web parity AiAssistantPage) ──
+    val source: String? = null,          // 'private-local' | 'shared' | 'cloud' | 'system'
+    val streaming: Boolean = false,      // assistant bubble is currently being streamed
+    val cancelled: Boolean = false,      // user pressed stop — keep partial text, no error
+    val failed: Boolean = false,         // stream failed — show honest error state
+    val sourceBadge: String? = null      // pre-resolved i18n key for the source badge
 ) : java.io.Serializable {
     fun applyMarkdownTo(textView: TextView) {
         if (isTyping) return

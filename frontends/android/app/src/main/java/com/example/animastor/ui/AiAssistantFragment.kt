@@ -24,13 +24,19 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.animastor.R
 import com.example.animastor.databinding.FragmentAiAssistantBinding
+import com.example.animastor.repository.AiChatDone
+import com.example.animastor.repository.AiChatError
 import com.example.animastor.repository.AiChatRequest
 import com.example.animastor.repository.AiMessage
 import com.example.animastor.repository.BookData
 import com.example.animastor.repository.ChatSessionApi
 import com.example.animastor.repository.ResourceInvalidations
 import com.example.animastor.repository.ToolCallResult
+import com.example.animastor.repository.AiChatStream.sourceBadgeKey
+import com.example.animastor.repository.AiChatStream.streamErrorKey
 import com.example.animastor.repository.unitIndex
+import com.example.animastor.network.AiChatSseClient
+import com.example.animastor.network.RetrofitClient
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.Job
@@ -80,6 +86,14 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
     private var bookData: BookData? = null
     private var bookDataLoadAttempted = false
 
+    // ── AI chat streaming (LLM Sharing Phase 3, web parity AiAssistantPage) ──
+    private val aiChatStream by lazy { AiChatSseClient(RetrofitClient.httpClient) }
+    private var aiSending = false
+    private var streamedText = ""
+    private var currentSource: String? = null
+    private var assistantMsgIndex = -1
+    private var streamSessionId: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         argBookId = arguments?.getString(ARG_BOOK_ID)
@@ -98,10 +112,12 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         b.messageList.adapter = adapter
 
         b.micButton.setOnClickListener { startVoiceInput() }
-        b.sendButton.setOnClickListener { sendMessage() }
+        b.sendButton.setOnClickListener {
+            if (aiSending) stopAiStream() else sendAiMessage()
+        }
         b.inputField.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEND) {
-                sendMessage()
+                sendAiMessage()
                 true
             } else false
         }
@@ -572,11 +588,50 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         binding?.typingIndicator?.root?.visibility = View.GONE
     }
 
-    private fun sendMessage() {
+    /** Marshals [block] to the UI thread when the fragment is attached. */
+    private fun runOnMain(block: () -> Unit) {
+        if (isAdded) requireActivity().runOnUiThread(block)
+    }
+
+    /** Resolves an i18n string-resource key name (e.g. "ai_state_timeout") to its value. */
+    private fun stringByKey(key: String?): String? {
+        if (key.isNullOrBlank()) return null
+        val res = requireContext().resources
+        val resId = res.getIdentifier(key, "string", requireContext().packageName)
+        return if (resId == 0) null else getString(resId)
+    }
+
+    /** Send button: send icon when idle, stop icon while streaming. */
+    private fun updateSendButton() {
+        val b = binding ?: return
+        b.sendButton.isEnabled = true
+        b.sendButton.setImageResource(if (aiSending) R.drawable.ic_stop else R.drawable.ic_send)
+        b.sendButton.contentDescription = getString(if (aiSending) R.string.ai_cancel else R.string.ai_send)
+    }
+
+    /** User pressed stop — cancel the in-flight stream and mark the bubble cancelled. */
+    private fun stopAiStream() {
+        if (!aiSending) return
+        aiSending = false
+        updateSendButton()
+        hideTypingIndicator()
+        aiChatStream.cancel()
+        runOnMain {
+            val idx = assistantMsgIndex
+            if (idx >= 0 && idx < messages.size) {
+                val m = messages[idx]
+                messages[idx] = m.copy(streaming = false, cancelled = true)
+                adapter.notifyItemChanged(idx)
+            }
+            scrollToBottom()
+        }
+    }
+
+    /** Send a message, streaming the reply over SSE with fallback to one-shot POST /ai/chat. */
+    private fun sendAiMessage() {
         val text = binding?.inputField?.text?.toString()?.trim() ?: return
         if (text.isEmpty()) return
         binding?.inputField?.setText("")
-        binding?.sendButton?.isEnabled = false
 
         val userMsg = ChatMessage(text = text, isUser = true)
         messages.add(userMsg)
@@ -584,65 +639,241 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
         adapter.submitList(messages.toList())
         scrollToBottom()
 
-        showTypingIndicator()
-        scrollToBottom()
+        aiSending = true
+        updateSendButton()
 
         val sessionAtSend = currentSessionId
+        assistantMsgIndex = -1
+        streamedText = ""
+        currentSource = null
+        streamSessionId = null
+
+        lifecycleScope.launch {
+            val bid = generateViewModel.bookId.takeIf { it.isNotBlank() }
+                ?: argBookId?.takeIf { it.isNotBlank() }
+            if (bid.isNullOrBlank()) {
+                runOnMain { aiSending = false; updateSendButton() }
+                return@launch
+            }
+            val lang = requireContext().getSharedPreferences("animastor_settings", 0)
+                .getString("language", "auto")
+
+            val request = AiChatRequest(
+                apiMessages.toList(),
+                bookId = bid,
+                lang = lang,
+                mode = currentMode.id,
+                topicId = "book",
+                sceneId = SharedPositionManager.current.value.sceneId,
+                characterId = null,
+                sessionId = sessionAtSend
+            )
+
+            // Placeholder assistant bubble that will be filled by the stream.
+            // (lifecycleScope.launch on Fragment runs on the main thread.)
+            showTypingIndicator()
+            scrollToBottom()
+            assistantMsgIndex = messages.size
+            messages.add(
+                ChatMessage(
+                    text = "",
+                    isUser = false,
+                    streaming = true,
+                    sourceBadge = sourceBadgeKey(currentSource)
+                )
+            )
+            adapter.submitList(messages.toList())
+            scrollToBottom()
+
+            aiChatStream.onMeta = { meta ->
+                streamSessionId = meta.sessionId
+                currentSource = meta.aiSource
+                runOnMain {
+                    val idx = assistantMsgIndex
+                    if (idx >= 0 && idx < messages.size) {
+                        messages[idx] = messages[idx].copy(sourceBadge = sourceBadgeKey(meta.aiSource))
+                        adapter.notifyItemChanged(idx)
+                    }
+                }
+            }
+
+            aiChatStream.onDelta = { delta ->
+                streamedText += delta
+                runOnMain {
+                    val idx = assistantMsgIndex
+                    if (idx >= 0 && idx < messages.size) {
+                        messages[idx] = messages[idx].copy(text = streamedText, streaming = true)
+                        adapter.notifyItemChanged(idx)
+                        scrollToBottom()
+                    }
+                }
+            }
+
+            aiChatStream.onDone = { done ->
+                runOnMain {
+                    finalizeAiStream(done, bid, sessionAtSend)
+                }
+            }
+
+            aiChatStream.onError = { error ->
+                runOnMain {
+                    handleAiStreamError(error, request, sessionAtSend)
+                }
+            }
+
+            try {
+                aiChatStream.start(request)
+            } catch (e: Exception) {
+                runOnMain {
+                    handleAiStreamError(
+                        AiChatError(code = null, message = e.message ?: "stream failed"),
+                        request,
+                        sessionAtSend
+                    )
+                }
+            }
+        }
+    }
+
+    /** Terminal frame received — finalize the assistant bubble (web: onDone). */
+    private fun finalizeAiStream(done: AiChatDone, bid: String?, sessionAtSend: String?) {
+        // Discard if user switched sessions while streaming
+        if (sessionAtSend != null && currentSessionId != sessionAtSend) {
+            aiSending = false
+            updateSendButton()
+            hideTypingIndicator()
+            return
+        }
+
+        aiSending = false
+        updateSendButton()
+        hideTypingIndicator()
+
+        val idx = assistantMsgIndex
+        val finalText = if (streamedText.isNotBlank()) streamedText else (done.reply ?: "")
+
+        // Save session_id only when backend auto-created it (no session before)
+        if (sessionAtSend == null && done.sessionId != null) {
+            currentSessionId = done.sessionId
+            streamSessionId = done.sessionId
+        }
+
+        if (idx >= 0 && idx < messages.size) {
+            val sourceKey = sourceBadgeKey(currentSource)
+            messages[idx] = ChatMessage(
+                text = finalText,
+                isUser = false,
+                streaming = false,
+                source = currentSource,
+                sourceBadge = sourceKey
+            )
+            adapter.notifyItemChanged(idx)
+        }
+
+        apiMessages.add(AiMessage(role = "assistant", content = finalText))
+
+        // ── External invalidation: the assistant just mutated the book
+        // bundle server-side (patches_applied > 0). Same contract as the
+        // one-shot POST /ai/chat path (AiAssistantFragment parity).
+        val patchedBookId = done.bookId
+            ?.substringAfterLast("/api/v1/book/")
+            ?.substringBeforeLast('/')
+            ?.takeIf { it.isNotBlank() }
+            ?: bid
+        if (done.patchesApplied > 0 && !patchedBookId.isNullOrBlank()) {
+            ResourceInvalidations.emitExternal(ResourceInvalidations.Keys.book(patchedBookId))
+            Log.i(TAG, "chat applied ${done.patchesApplied} patch(es) — emitted book invalidation for $patchedBookId")
+            loadBookDataAsync()
+        }
+
+        // Download URL for a generated book (web parity AiAssistantPage)
+        val aiMsg = if (done.bookId != null) {
+            var bookId_ = done.bookId
+            if (bookId_.contains("api/v1/book/")) {
+                bookId_ = bookId_.substringAfterLast("/api/v1/book/").substringBeforeLast("/")
+            }
+            val downloadUrl = "${com.example.animastor.BuildConfig.BASE_URL}api/v1/book/${bookId_}/download"
+            ChatMessage(text = finalText, isUser = false, downloadUrl = downloadUrl,
+                source = currentSource, sourceBadge = sourceBadgeKey(currentSource))
+        } else {
+            ChatMessage(text = finalText, isUser = false, source = currentSource,
+                sourceBadge = sourceBadgeKey(currentSource))
+        }
+        // Replace the streaming bubble with the final one (keeps source badge).
+        if (idx >= 0 && idx < messages.size) {
+            messages[idx] = aiMsg
+        } else {
+            messages.add(aiMsg)
+        }
+        adapter.submitList(messages.toList())
+        scrollToBottom()
+    }
+
+    /** Stream error — fallback to one-shot POST /ai/chat if nothing streamed yet,
+        otherwise mark the bubble failed (web: mid-stream failure keeps partial text). */
+    private fun handleAiStreamError(error: AiChatError, request: AiChatRequest, sessionAtSend: String?) {
+        if (sessionAtSend != null && currentSessionId != sessionAtSend) {
+            aiSending = false
+            updateSendButton()
+            hideTypingIndicator()
+            return
+        }
+
+        val idx = assistantMsgIndex
+        if (streamedText.isEmpty() && idx >= 0 && idx < messages.size) {
+            // Nothing streamed yet: fall back to one-shot POST /ai/chat (web parity).
+            messages.removeAt(idx)
+            assistantMsgIndex = -1
+            fallbackOneShot(request, sessionAtSend)
+            return
+        }
+
+        // Mid-stream failure: keep partial text, mark failed.
+        aiSending = false
+        updateSendButton()
+        hideTypingIndicator()
+        if (idx >= 0 && idx < messages.size) {
+            messages[idx] = messages[idx].copy(streaming = false, failed = true)
+            adapter.notifyItemChanged(idx)
+        }
+        val errText = stringByKey(streamErrorKey(error.code))
+            ?: (error.message ?: getString(R.string.ai_error, "unknown"))
+        messages.add(ChatMessage(text = errText, isUser = false))
+        apiMessages.add(AiMessage(role = "assistant", content = streamedText))
+        adapter.submitList(messages.toList())
+        scrollToBottom()
+    }
+
+    /** Fallback one-shot POST /ai/chat when the SSE stream is unavailable. */
+    private fun fallbackOneShot(request: AiChatRequest, sessionAtSend: String?) {
         lifecycleScope.launch {
             try {
-                    val pos = SharedPositionManager.current.value
-                // F6: position resolution moved to server-side buildChatSystemPrompt
-                val bid = generateViewModel.bookId.takeIf { it.isNotBlank() }
-                    ?: argBookId?.takeIf { it.isNotBlank() }
-                val lang = requireContext().getSharedPreferences("animastor_settings", 0)
-                    .getString("language", "auto")
+                val response = generateViewModel.repository.chatWithAiFull(request)
 
-                // F6: system prompt is assembled server-side by chatEngine.buildChatSystemPrompt()
-                // from mode, topic, lang, scene_id. Frontend sends structured fields only.
-                val response = generateViewModel.repository.chatWithAiFull(
-                    AiChatRequest(
-                        apiMessages.toList(),
-                        bookId = bid,
-                        lang = lang,
-                        mode = currentMode.id,
-                        topicId = "book",
-                        sceneId = pos.sceneId,
-                        characterId = null,
-                        sessionId = sessionAtSend
-                    )
-                )
+                // Discard if user switched sessions while waiting
+                if ((sessionAtSend != null && currentSessionId != sessionAtSend) || !isAdded) return@launch
 
-                // Save session_id only when backend auto-created it (no session before)
+                aiSending = false
+                updateSendButton()
+                hideTypingIndicator()
+
                 if (sessionAtSend == null && response.sessionId != null) {
                     currentSessionId = response.sessionId
                 }
 
-                // Discard response if user switched to another session while waiting
-                // When sessionAtSend was null, session was being created — not a session switch
-                if ((sessionAtSend != null && currentSessionId != sessionAtSend) || !isAdded) return@launch
-
                 apiMessages.add(AiMessage(role = "assistant", content = response.reply))
 
-                // ── External invalidation: the assistant just mutated the book
-                // bundle server-side (patches applied to characters/locations/
-                // voices/behavior/units). Notify every screen holding book
-                // data (Editor tables, Navigator tree, Generator context bar)
-                // so they re-read the canonical JSON. This is the
-                // "external mutation → invalidation event → reload" pipeline;
-                // scope is the resource key, not a Character-specific hack.
                 val patchedBookId = response.bookId
                     ?.substringAfterLast("/api/v1/book/")
                     ?.substringBeforeLast('/')
                     ?.takeIf { it.isNotBlank() }
-                    ?: bid
+                    ?: request.bookId ?: ""
                 if (response.patchesApplied > 0 && !patchedBookId.isNullOrBlank()) {
                     ResourceInvalidations.emitExternal(ResourceInvalidations.Keys.book(patchedBookId))
-                    Log.i(TAG, "chat applied ${response.patchesApplied} patch(es) — emitted book invalidation for $patchedBookId")
-                    // The assistant's own cached context-bar snapshot is stale too.
+                    Log.i(TAG, "fallback chat applied ${response.patchesApplied} patch(es)")
                     loadBookDataAsync()
                 }
 
-                // Build display text: use reply if non-empty, else show tool results summary
                 val displayText = if (response.reply.isNotBlank()) {
                     response.reply
                 } else {
@@ -663,10 +894,9 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
 
             } catch (e: Exception) {
                 if (currentSessionId != sessionAtSend || !isAdded) return@launch
-                // Surface the backend's explanation (e.g. 504 ai_timeout body:
-                // {"error": "AI не ответил за отведённое время…", "code": ...})
-                // instead of the bare 'HTTP 504 Gateway Timeout' HttpException
-                // text. (Web parity: api/client.ts parses the error body.)
+                aiSending = false
+                updateSendButton()
+                hideTypingIndicator()
                 val detailedMessage = if (e is retrofit2.HttpException) {
                     val bodyText = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
                     bodyText?.let { raw ->
@@ -677,21 +907,15 @@ class AiAssistantFragment : Fragment(R.layout.fragment_ai_assistant) {
                 } else {
                     e.message ?: "unknown"
                 }
-                messages.add(
-                    ChatMessage(
-                        text = getString(R.string.ai_error, detailedMessage),
-                        isUser = false
-                    )
-                )
+                messages.add(ChatMessage(text = getString(R.string.ai_error, detailedMessage), isUser = false))
             }
-            hideTypingIndicator()
             if (isAdded) {
                 adapter.submitList(messages.toList())
                 scrollToBottom()
-                binding?.sendButton?.isEnabled = true
             }
         }
     }
+
 
     private fun startVoiceInput() {
         voiceInputClickCount++

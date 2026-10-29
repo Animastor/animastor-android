@@ -58,17 +58,54 @@ class ChatAdapter : ListAdapter<ChatMessage, RecyclerView.ViewHolder>(DiffCallba
     }
 
     class MessageViewHolder(private val container: FrameLayout) : RecyclerView.ViewHolder(container) {
+        private val wrapper: FrameLayout
+        private val sourceBadge: TextView
+        private val bubble: TextView
+        private val stateLine: TextView
+        private val copyButton: ImageButton
+
+        init {
+            wrapper = container.findViewById(R.id.bubbleWrapper)
+            sourceBadge = wrapper.findViewById(R.id.sourceBadge)
+            bubble = wrapper.findViewById(R.id.bubble)
+            stateLine = wrapper.findViewById(R.id.stateLine)
+            copyButton = wrapper.findViewById(R.id.copyButton)
+
+            // Ensure the bubble has a GradientDrawable background so bind() can
+            // recolor / re-corner it per message (user vs assistant).
+            bubble.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+            }
+
+            // Copy button (bottom-right corner INSIDE bubble)
+            copyButton.setOnClickListener {
+                val clipboard = container.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("chat", ""))
+                Toast.makeText(container.context, container.context.getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
+            }
+        }
+
         fun bind(msg: ChatMessage) {
             val ctx = container.context
-            val wrapper = container.getChildAt(0) as FrameLayout
-            val bubble = wrapper.getChildAt(0) as TextView
-            val copyButton = wrapper.getChildAt(1) as ImageButton
+            val r = ctx.resources.displayMetrics.density * 16f
 
             msg.applyMarkdownTo(bubble)
 
-            val density = ctx.resources.displayMetrics.density
-            val r = (16 * density).toFloat()
+            // Source badge (honest safe token only — Private AI / Shared AI / Cloud AI / System AI)
+            val badgeKey = if (!msg.isUser) msg.sourceBadge else null
+            sourceBadge.visibility = if (badgeKey.isNullOrBlank()) View.GONE else View.VISIBLE
+            if (badgeKey != null) {
+                sourceBadge.text = ctx.getString(ctx.resources.getIdentifier(badgeKey, "string", ctx.packageName))
+                val badgeBg = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    setColor(MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorPrimary, 0))
+                    cornerRadius = 8f
+                }
+                sourceBadge.background = badgeBg
+                sourceBadge.setTextColor(MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnPrimary, 0))
+            }
 
+            // Bubble colors + corners (user vs assistant)
             val (bgColor, fgColor, corners) = if (msg.isUser) {
                 val bg = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorSecondaryContainer, 0)
                 val fg = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSecondaryContainer, 0)
@@ -78,28 +115,37 @@ class ChatAdapter : ListAdapter<ChatMessage, RecyclerView.ViewHolder>(DiffCallba
                 val fg = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
                 Triple(bg, fg, floatArrayOf(0f, 0f, r, r, r, r, r, r))
             }
-
             bubble.setTextColor(fgColor)
-            bubble.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadii = corners
+            (bubble.background as GradientDrawable).apply {
                 setColor(bgColor)
+                cornerRadii = corners
             }
+
+            // Streaming / terminal state line
+            val stateRes = if (!msg.isUser) {
+                when {
+                    msg.streaming -> R.string.ai_state_streaming
+                    msg.cancelled -> R.string.ai_cancelled
+                    msg.failed -> R.string.ai_state_stream_failed
+                    else -> 0
+                }
+            } else 0
+            stateLine.visibility = if (stateRes == 0) View.GONE else View.VISIBLE
+            if (stateRes != 0) stateLine.text = ctx.getString(stateRes)
 
             // Gravity on the wrapper, not the bubble — positions the entire group
             val lp = wrapper.layoutParams as FrameLayout.LayoutParams
             lp.gravity = if (msg.isUser) Gravity.END else Gravity.START
             wrapper.layoutParams = lp
 
-            // ── Copy button (bottom-right corner INSIDE bubble) ────────
-            copyButton.visibility = View.VISIBLE
+            // Copy button text (the clipboard is set with the actual message on click)
             copyButton.setOnClickListener {
                 val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
                 Toast.makeText(ctx, ctx.getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
             }
 
-            // ── Text is selectable via standard Android long-press (textIsSelectable=true in XML) ──
+            // Text is selectable via standard Android long-press (textIsSelectable=true in XML).
             // No custom onLongClickListener — the default text selection handles it.
         }
     }

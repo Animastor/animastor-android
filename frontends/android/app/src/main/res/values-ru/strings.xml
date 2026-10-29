@@ -318,7 +318,25 @@
     <string name="ai_session_delete_confirm">Удалить этот чат?</string>
     <string name="ai_input_hint">Напишите сообщение…</string>
     <string name="ai_send">Отправить</string>
+    <string name="ai_cancel">Стоп</string>
     <string name="ai_welcome">Здравствуйте! Я Анимастор, ваш интеллектуальный помощник для создания интерактивных книг. Чем могу помочь вашему проекту?</string>
+    <!-- AI source badge (honest, safe token only — never endpoint/owner detail) -->
+    <string name="ai_source_private">Приватный AI</string>
+    <string name="ai_source_shared">Общий AI</string>
+    <string name="ai_source_cloud">Облачный AI</string>
+    <string name="ai_source_system">Системный AI</string>
+    <!-- Honest streaming terminal states -->
+    <string name="ai_state_streaming">Печатает…</string>
+    <string name="ai_state_unavailable">AI недоступен — провайдер не настроен или системный AI выключен</string>
+    <string name="ai_state_local_not_ready">Local AI не готов — выберите коннектор и модель в настройках</string>
+    <string name="ai_state_shared_unavailable">Общий AI (Shared) сейчас недоступен</string>
+    <string name="ai_state_offline">Local AI не в сети</string>
+    <string name="ai_state_runtime_unreachable">Локальный рантайм недоступен</string>
+    <string name="ai_state_timeout">AI не ответил за отведённое время. Попробуйте повторить позже.</string>
+    <string name="ai_state_busy">AI занят — попробуйте ещё раз чуть позже</string>
+    <string name="ai_state_model_not_found">Модель не найдена на локальном рантайме</string>
+    <string name="ai_state_stream_failed">Стрим прерван после частичного ответа</string>
+    <string name="ai_cancelled">Генерация остановлена</string>
     <string name="ai_placeholder">Я понял ваш запрос. Эта функция скоро появится!</string>
     <string name="ai_error">Ошибка: %1$s</string>
     <string name="ai_no_result">Ассистент не вернул результат. Попробуйте повторить запрос.</string>

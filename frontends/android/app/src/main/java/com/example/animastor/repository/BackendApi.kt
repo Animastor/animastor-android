@@ -65,6 +65,19 @@ interface BackendApi {
         @Body request: AiChatRequest
     ): AiChatResponse
 
+    // ── Streaming AI chat (SSE, LLM Sharing Phase 3) ──
+    // POST /api/v1/ai/chat/stream — accepts application/json, returns text/event-stream.
+    // Frames: event:meta {session_id, ai_source?}, event:delta {delta},
+    // event:done {...}, event:error {code, message}. On non-2xx the error body
+    // carries {error, code} (sanitized). Consumed by AiChatStream (OkHttp
+    // EventSource) with fallback to one-shot chatWithAi when the stream route
+    // is unavailable. Web parity: frontends/app/src/api/client.ts postChatStream.
+    @Streaming
+    @POST("/api/v1/ai/chat/stream")
+    suspend fun chatWithAiStream(
+        @Body request: AiChatRequest
+    ): ResponseBody
+
     @GET("/api/v1/ai/sessions")
     suspend fun listSessions(
         @Query("book_id") bookId: String
