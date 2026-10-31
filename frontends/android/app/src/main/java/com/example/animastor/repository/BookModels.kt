@@ -536,7 +536,16 @@ data class ProgressTask(
     val visible: Boolean = true,
     val indeterminate: Boolean = false,
     /** Server-set — true when this task has been cancelled via cancel-worker API. */
-    val cancelled: Boolean = false
+    val cancelled: Boolean = false,
+    /** Stage 155 (command-only generation): registry task status —
+     *  active | completed | cancelled | blocked | interrupted. Absent on older backends. */
+    val status: String? = null,
+    /** No live worker of the type — the command is blocked (no auto-retry). */
+    val blocked: Boolean = false,
+    /** "no_worker:<type>" when blocked, else null. */
+    val blocked_reason: String? = null,
+    /** Interrupted by a backend restart — resumed only by a new command. */
+    val interrupted: Boolean = false
 )
 
 // ======================================================

@@ -179,6 +179,16 @@
     <string name="progress_format_iu">%1$s · %2$d / %3$d modules</string>
     <string name="progress_idle">Idle</string>
     <string name="generation_done">Done</string>
+    <!-- Stage 155 — generation only by explicit command (task statuses) -->
+    <string name="task_blocked_no_worker">No worker: %1$s</string>
+    <string name="task_interrupted">Interrupted</string>
+    <string name="task_cancelled">Cancelled</string>
+    <string name="task_retry">Retry</string>
+    <string name="task_continue">Continue</string>
+    <string name="worker_type_audio">audio</string>
+    <string name="worker_type_image">image</string>
+    <string name="worker_type_video">video</string>
+    <string name="generate_layer_disabled">Turn on the «%1$s» layer to generate</string>
     <string name="progress_cover_generating">Generating cover...</string>
     <string name="progress_vbook_analyzing">Analyzing...</string>
     <string name="progress_vbook_scenes">%1$d/%2$d</string>

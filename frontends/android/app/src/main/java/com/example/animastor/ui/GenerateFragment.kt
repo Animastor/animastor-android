@@ -528,14 +528,36 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             val rowBinding = ItemWorkerProgressBinding.inflate(layoutInflater, container, false)
             val row = rowBinding.root
 
-            if (taskRow.cancelled) {
-                rowBinding.workerName.text = getString(R.string.generation_done) + " — " + scopedTaskLabel(taskRow)
+            if (taskRow.state == TaskRowState.CANCELLED || taskRow.cancelled) {
+                // Stage 155: a cancelled command — «Отменено», no buttons.
+                rowBinding.workerName.text = getString(R.string.task_cancelled) + " — " + scopedTaskLabel(taskRow)
                 rowBinding.workerName.setTextColor(errorColor)
                 rowBinding.workerCount.visibility = View.GONE
                 rowBinding.workerPercent.visibility = View.GONE
                 rowBinding.workerTimer.visibility = View.GONE
                 rowBinding.workerProgressBar.visibility = View.GONE
                 rowBinding.workerStopButton.visibility = View.GONE
+            } else if (TaskStatusHelpers.isStopped(taskRow.state)) {
+                // Stage 155: blocked (no live worker) / interrupted (backend
+                // restart) — no spinner, no timer; only a new command restarts it.
+                val blocked = taskRow.state == TaskRowState.BLOCKED
+                val status = if (blocked) {
+                    getString(R.string.task_blocked_no_worker, getString(when (taskRow.blockedType) {
+                        "audio" -> R.string.worker_type_audio
+                        "video" -> R.string.worker_type_video
+                        else -> R.string.worker_type_image
+                    }))
+                } else getString(R.string.task_interrupted)
+                rowBinding.workerName.text = status + " — " + scopedTaskLabel(taskRow)
+                rowBinding.workerName.setTextColor(textColor)
+                rowBinding.workerCount.visibility = View.GONE
+                rowBinding.workerPercent.visibility = View.GONE
+                rowBinding.workerTimer.visibility = View.GONE
+                rowBinding.workerProgressBar.visibility = View.GONE
+                rowBinding.workerStopButton.visibility = View.GONE
+                rowBinding.workerRetryButton.text = getString(if (blocked) R.string.task_retry else R.string.task_continue)
+                rowBinding.workerRetryButton.visibility = View.VISIBLE
+                rowBinding.workerRetryButton.setOnClickListener { onRetryRow(taskRow) }
             } else if (taskRow.indeterminate) {
                 rowBinding.workerName.text = scopedTaskLabel(taskRow)
                 rowBinding.workerName.setTextColor(textColor)
@@ -934,12 +956,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         showScopeDialog { scope, chId, scId ->
             viewModel.startGeneration(
                 GenerateViewModel.GenerationRequest(workerTypes = listOf("audio"), scope = scope, chapterId = chId, sceneId = scId)
-            ) { result ->
-                when (result) {
-                    is GenerateViewModel.GenerationResult.Started -> Toast.makeText(requireContext(), getString(R.string.generate_started_layer, getString(R.string.progress_label_audio)), Toast.LENGTH_SHORT).show()
-                    is GenerateViewModel.GenerationResult.Failed -> Toast.makeText(requireContext(), getString(R.string.generate_start_failed, result.message), Toast.LENGTH_LONG).show()
-                }
-            }
+            ) { result -> showGenerationResult(result, R.string.progress_label_audio) }
         }
     }
 
@@ -956,12 +973,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         showScopeDialog { scope, chId, scId ->
             viewModel.startGeneration(
                 GenerateViewModel.GenerationRequest(workerTypes = listOf("image"), scope = scope, chapterId = chId, sceneId = scId)
-            ) { result ->
-                when (result) {
-                    is GenerateViewModel.GenerationResult.Started -> Toast.makeText(requireContext(), getString(R.string.generate_started_layer, getString(R.string.progress_label_image)), Toast.LENGTH_SHORT).show()
-                    is GenerateViewModel.GenerationResult.Failed -> Toast.makeText(requireContext(), getString(R.string.generate_start_failed, result.message), Toast.LENGTH_LONG).show()
-                }
-            }
+            ) { result -> showGenerationResult(result, R.string.progress_label_image) }
         }
     }
 
@@ -978,13 +990,36 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         showScopeDialog { scope, chId, scId ->
             viewModel.startGeneration(
                 GenerateViewModel.GenerationRequest(workerTypes = listOf("video"), scope = scope, chapterId = chId, sceneId = scId)
-            ) { result ->
-                when (result) {
-                    is GenerateViewModel.GenerationResult.Started -> Toast.makeText(requireContext(), getString(R.string.generate_started_layer, getString(R.string.progress_label_video)), Toast.LENGTH_SHORT).show()
-                    is GenerateViewModel.GenerationResult.Failed -> Toast.makeText(requireContext(), getString(R.string.generate_start_failed, result.message), Toast.LENGTH_LONG).show()
-                }
+            ) { result -> showGenerationResult(result, R.string.progress_label_video) }
+        }
+    }
+
+    /** Toast for a /regenerate outcome. Stage 155: 409 layer_disabled says
+     *  which layer to switch on instead of a generic failure. */
+    private fun showGenerationResult(result: GenerateViewModel.GenerationResult, layerLabelRes: Int) {
+        val ctx = context ?: return
+        when (result) {
+            is GenerateViewModel.GenerationResult.Started ->
+                Toast.makeText(ctx, getString(R.string.generate_started_layer, getString(layerLabelRes)), Toast.LENGTH_SHORT).show()
+            is GenerateViewModel.GenerationResult.Failed ->
+                Toast.makeText(ctx, getString(R.string.generate_start_failed, result.message), Toast.LENGTH_LONG).show()
+            is GenerateViewModel.GenerationResult.LayerDisabled -> {
+                val labels = result.workerTypes.joinToString("», «") { getString(layerLabelResFor(it)) }
+                Toast.makeText(ctx, getString(R.string.generate_layer_disabled, labels), Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun layerLabelResFor(type: String): Int = when (type) {
+        "audio" -> R.string.progress_label_audio
+        "video" -> R.string.progress_label_video
+        else -> R.string.progress_label_image
+    }
+
+    /** Stage 155 — «Повторить» / «Продолжить»: a NEW explicit command (same type + scope). */
+    private fun onRetryRow(taskRow: TaskRow) {
+        val type = TaskStatusHelpers.commandWorkerType(taskRow.type) ?: return
+        viewModel.retryStoppedTask(taskRow) { result -> showGenerationResult(result, layerLabelResFor(type)) }
     }
 
     private fun onStopClicked(type: String) {

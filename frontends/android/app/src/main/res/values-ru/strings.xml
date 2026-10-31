@@ -249,6 +249,16 @@
     <string name="progress_format_iu">%1$s · %2$d / %3$d модулей</string>
     <string name="progress_idle">Ожидание</string>
     <string name="generation_done">Готово</string>
+    <!-- Stage 155 — генерация только по команде (статусы задач) -->
+    <string name="task_blocked_no_worker">Нет воркера: %1$s</string>
+    <string name="task_interrupted">Прервано</string>
+    <string name="task_cancelled">Отменено</string>
+    <string name="task_retry">Повторить</string>
+    <string name="task_continue">Продолжить</string>
+    <string name="worker_type_audio">аудио</string>
+    <string name="worker_type_image">изображения</string>
+    <string name="worker_type_video">видео</string>
+    <string name="generate_layer_disabled">Включите слой «%1$s», чтобы генерировать</string>
     <string name="progress_cover_generating">Генерация обложки...</string>
     <string name="progress_vbook_analyzing">Анализ...</string>
     <string name="progress_vbook_scenes">%1$d/%2$d</string>

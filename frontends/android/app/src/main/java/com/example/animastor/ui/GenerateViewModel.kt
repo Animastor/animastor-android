@@ -475,6 +475,8 @@ class GenerateViewModel(
     sealed class GenerationResult {
         data class Started(val dirty: Int, val scope: String) : GenerationResult()
         data class Failed(val message: String) : GenerationResult()
+        /** Stage 155: /regenerate 409 layer_disabled — no task was created. */
+        data class LayerDisabled(val workerTypes: List<String>) : GenerationResult()
     }
 
     fun startGeneration(req: GenerationRequest, onResult: (GenerationResult) -> Unit) {
@@ -544,10 +546,33 @@ class GenerateViewModel(
                     onResult(GenerationResult.Failed("cancelled"))
                 } else {
                     Log.e(TAG, "startGeneration failed: ${e.message}", e)
-                    onResult(GenerationResult.Failed(e.message ?: "unknown"))
+                    val http = e as? retrofit2.HttpException
+                    val body = runCatching { http?.response()?.errorBody()?.string() }.getOrNull()
+                    when (val err = TaskStatusHelpers.classifyStartError(http?.code(), body, e.message ?: "unknown", req.workerTypes)) {
+                        is TaskStatusHelpers.StartError.LayerDisabled -> {
+                            // Nothing runs — do not leave the session "regenerating".
+                            _newGenerationPending = false
+                            _isRegenerating.value = false
+                            onResult(GenerationResult.LayerDisabled(err.workerTypes))
+                        }
+                        is TaskStatusHelpers.StartError.Other -> onResult(GenerationResult.Failed(err.message))
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Stage 155 — «Повторить» / «Продолжить» for a blocked / interrupted row.
+     * Never automatic: the user presses the button and a NEW explicit
+     * /regenerate with the row's worker type and scope is sent.
+     * Returns false when the row has nothing to repeat.
+     */
+    fun retryStoppedTask(row: TaskRow, onResult: (GenerationResult) -> Unit): Boolean {
+        val cmd = TaskStatusHelpers.retryCommandFor(row.state, row.type, row.scope, row.chapterId, row.sceneId)
+            ?: return false
+        startGeneration(GenerationRequest(cmd.workerTypes, cmd.scope, cmd.chapterId, cmd.sceneId), onResult)
+        return true
     }
 
     /**
@@ -1323,22 +1348,6 @@ class GenerateViewModel(
 
     fun markUnsavedChanges() { hasUnsavedChanges = true }
 
-    fun regenerateFromSnapshot() {
-        startGeneration(
-            req = GenerationRequest(
-                workerTypes = buildList {
-                    if (audioEnabled()) add("audio")
-                    if (imageEnabled) add("image")
-                    if (videoEnabled()) add("video")
-                },
-                scope = "whole_book",
-                chapterId = null,
-                sceneId = null
-            ),
-            onResult = {}
-        )
-    }
-
     fun snapshotCurrentBook() {
         if (bookId.isNotBlank()) {
             viewModelScope.launch {
@@ -1796,13 +1805,18 @@ class GenerateViewModel(
             sw: com.example.animastor.repository.ProgressTask,
             label: String
         ) {
-            if (sw.total <= 0) return
+            val preState = TaskStatusHelpers.taskRowState(sw.status, sw.done, sw.cancelled, sw.blocked, sw.interrupted)
+            val stopped = TaskStatusHelpers.isStopped(preState)
+            // A stopped command stays visible even without countable units.
+            if (sw.total <= 0 && !stopped) return
             // Per-ROW key: sibling rows of one task (per-target rows) keep their
             // own floor and their own 10s done-window — a fast sibling can never
             // expire a still-running one, and ready counts never cross-pollute.
             val taskKey = rowTaskKey(sw.task_id, sw.type, sw.chapter_id, sw.scene_id)
             val ready = maxOf(sw.ready, taskReadyFloor[taskKey] ?: 0)
-            val done = sw.done || (ready >= sw.total && ready > 0)
+            val done = !stopped && preState != TaskRowState.CANCELLED &&
+                (sw.done || (ready >= sw.total && ready > 0))
+            val state = TaskStatusHelpers.taskRowState(sw.status, done, sw.cancelled, sw.blocked, sw.interrupted)
             // STALE-DONE GATE (identical to mobile web) — the backend keeps
             // recently-completed tasks in the panel for ~30s (TERMINAL_RETENTION_MS)
             // and can report a task whose assets are all ready as done. On screen
@@ -1843,9 +1857,11 @@ class GenerateViewModel(
                 total = sw.total,
                 percent = if (done) 100 else sw.percent.coerceIn(0, 99),
                 done = done,
-                indeterminate = sw.indeterminate,
+                indeterminate = if (stopped) false else sw.indeterminate,
                 cancelled = sw.cancelled,
-                elapsedSeconds = elapsedSeconds
+                elapsedSeconds = elapsedSeconds,
+                state = state,
+                blockedType = if (state == TaskRowState.BLOCKED) TaskStatusHelpers.blockedWorkerType(sw.blocked_reason, sw.type) else null
             ))
         }
 
@@ -1980,8 +1996,9 @@ class GenerateViewModel(
             return ProgressPanelState.Hidden
         }
 
-        // Check if any worker is still active (non-done, non-cancelled)
-        val anyActive = rows.any { !it.done && !it.cancelled }
+        // Check if any worker is still active (non-done, non-cancelled, not
+        // stopped: a blocked/interrupted row waits for a new command)
+        val anyActive = rows.any { it.state == TaskRowState.ACTIVE }
 
         if (!anyActive) {
             // All remaining workers are done but still within 10s display window
@@ -2029,7 +2046,12 @@ data class TaskRow(
      * (now - timerStartedAt) while the worker is still active.
      * -1 means the timer is not running (should not happen for visible workers).
      */
-    val elapsedSeconds: Long = -1L
+    val elapsedSeconds: Long = -1L,
+    /** Stage 155 display state: blocked / interrupted rows are stopped (no
+     *  spinner, no timer) and wait for a new command. */
+    val state: TaskRowState = if (done) TaskRowState.DONE else if (cancelled) TaskRowState.CANCELLED else TaskRowState.ACTIVE,
+    /** Missing worker type of a blocked row (from blocked_reason). */
+    val blockedType: String? = null
 )
 
 /**
