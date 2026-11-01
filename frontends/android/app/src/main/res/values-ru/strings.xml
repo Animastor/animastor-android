@@ -707,6 +707,9 @@
     <string name="worker_setup_create_body">Воркер создаётся в вашем рабочем пространстве. Ключ воркера показывается один раз — установщик на GPU-машине запросит его.</string>
     <string name="worker_setup_key_title">Ключ воркера (показывается один раз)</string>
     <string name="worker_setup_key_installer_note">Установщик запросит этот ключ на GPU-машине (скрытый ввод). Ключ не сохраняется в состоянии установщика и не передаётся через Setup Contract.</string>
+    <string name="worker_setup_key_show">Показать</string>
+    <string name="worker_setup_key_hide">Скрыть</string>
+    <string name="worker_setup_worker_line">Воркер: %1$s · %2$s</string>
     <string name="worker_setup_installer_title">Установщик GPU-воркера Animastor</string>
     <string name="worker_setup_installer_version_line">Версия установщика: %1$s</string>
     <string name="worker_setup_version_fmt">Версия: %1$s</string>
@@ -730,7 +733,7 @@
     <string name="worker_setup_step_download_bootstrap_title">Скачайте установщик</string>
     <string name="worker_setup_step_download_bootstrap_body">Скрипт уже настроен под выбранные профиль и режим — ничего вводить не нужно.</string>
     <string name="worker_setup_step_run_bootstrap_title">Запустите установщик</string>
-    <string name="worker_setup_step_run_bootstrap_body">Установщик сам скачает и проверит все компоненты, затем запросит ключ воркера (скрытый ввод) — вставьте ключ, сохранённый выше.</string>
+    <string name="worker_setup_step_run_bootstrap_body">Скопируйте команду целиком (одной строкой) и выполните её в терминале GPU-машины (SSH или консоль). Профиль и режим уже встроены. Установщик проверит машину, поставит только недостающее, запросит ключ воркера (скрытый ввод — вставьте ключ, сохранённый выше) и закончит итогом ✓/✗ с командой исправления для каждой проблемы.</string>
     <string name="worker_setup_step_download_bundle_title">Скачайте runtime-бандл воркера</string>
     <string name="worker_setup_step_download_bundle_body">Скачайте runtime-бандл одним архивом и проверьте контрольную сумму — файлы по отдельности скачивать не нужно.</string>
     <string name="worker_setup_step_unpack_bundle_title">Распакуйте бандл</string>

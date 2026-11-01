@@ -260,6 +260,14 @@ object WorkerSetupHelpers {
         else -> "offline"
     }
 
+    /** Worker Key preview for the install step: masked by default and revealed
+     *  only on an explicit Show tap (web parity: maskSecret() — same fixtures). */
+    fun maskSecret(secret: String?): String {
+        if (secret.isNullOrEmpty()) return ""
+        if (secret.length <= 8) return "\u2022".repeat(secret.length)
+        return secret.take(4) + "\u2026" + secret.takeLast(4)
+    }
+
     // ── Wizard state machine (pure) ──────────────────────────────────────
 
     enum class WizardStep { PROFILE, MODE, PLATFORM, CREATE, INSTALL }

@@ -672,18 +672,59 @@ class WorkerSetupWizardFragment : Fragment() {
             setLineSpacing(0f, 1.3f)
             b.addView(this)
         }
+        // The worker this installation belongs to: name, type and the status
+        // the backend derives from the hub (Offline until the first heartbeat,
+        // then Online). Facts only — nothing invented locally.
+        val typeLabel = getString(when (worker.worker_type) {
+            "audio" -> R.string.layer_audio
+            "image" -> R.string.layer_image
+            else -> R.string.layer_video
+        })
+        hintView(b, getString(R.string.worker_setup_worker_line, worker.name ?: "", typeLabel)).apply {
+            setPadding(0, dp(6), 0, 0)
+        }
+        TextView(ctx).apply {
+            text = getString(stringResForSetupStatusKey(WorkerSetupHelpers.setupStatusKey(worker.status)))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setTextColor(MaterialColors.getColor(this,
+                if (worker.status == "ONLINE") com.google.android.material.R.attr.colorPrimary
+                else com.google.android.material.R.attr.colorOnSurfaceVariant))
+            setPadding(0, dp(2), 0, dp(2))
+            b.addView(this)
+        }
+
         stepLabel(b, getString(R.string.worker_setup_key_title))
-        codeBlock(b, token)
+        // Masked by default (shoulder-surfing / screen sharing); revealed only
+        // on an explicit tap. Nothing about this state is persisted.
+        val keyView = codeBlock(b, WorkerSetupHelpers.maskSecret(token))
+        val keyActions = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        }
         MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(40)).apply { topMargin = dp(6) }
+            layoutParams = LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) }
+            text = getString(R.string.worker_setup_key_show)
+            setOnClickListener {
+                val masked = WorkerSetupHelpers.maskSecret(token)
+                val reveal = keyView.text.toString() == masked
+                keyView.text = if (reveal) token else masked
+                text = getString(if (reveal) R.string.worker_setup_key_hide else R.string.worker_setup_key_show)
+            }
+            keyActions.addView(this)
+        }
+        MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            layoutParams = LinearLayout.LayoutParams(0, dp(40), 1f)
             text = getString(R.string.worker_copy)
             setOnClickListener {
                 copyToClipboard("animastor-worker-token", token)
                 text = getString(R.string.worker_copied)
                 postDelayed({ text = getString(R.string.worker_copy) }, 1800)
             }
-            b.addView(this)
+            keyActions.addView(this)
         }
+        b.addView(keyActions)
         hintView(b, getString(R.string.worker_setup_key_installer_note)).apply { setPadding(0, dp(6), 0, 0) }
 
         // Installer artifact — the instructions contract carries the
@@ -815,6 +856,20 @@ class WorkerSetupWizardFragment : Fragment() {
                     codeBlock(b, code).apply {
                         (layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(6)
                     }
+                    // The one-liner is meant to be pasted on the GPU machine —
+                    // one-tap copy (web parity: CopyableCode).
+                    MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, dp(38)
+                        ).apply { topMargin = dp(4) }
+                        text = getString(R.string.worker_copy)
+                        setOnClickListener {
+                            copyToClipboard("animastor-install-command", code)
+                            text = getString(R.string.worker_copied)
+                            postDelayed({ text = getString(R.string.worker_copy) }, 1800)
+                        }
+                        b.addView(this)
+                    }
                 }
                 // Checksum — collapsed by default (web parity: <details>).
                 val cs = s.checksum
@@ -922,6 +977,17 @@ class WorkerSetupWizardFragment : Fragment() {
         codeBlock(b, BetaSettingsHelpers.renderEnvBlock(contract)).apply {
             (layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(6)
         }
+    }
+
+    /** Extended status key → R.string (same mapping as the worker list). */
+    private fun stringResForSetupStatusKey(key: String): Int = when (key) {
+        "worker_status_online" -> R.string.worker_status_online
+        "worker_status_revoked" -> R.string.worker_status_revoked
+        "worker_status_connecting" -> R.string.worker_status_connecting
+        "worker_status_error" -> R.string.worker_status_error
+        "worker_status_installing" -> R.string.worker_status_installing
+        "worker_status_not_configured" -> R.string.worker_status_not_configured
+        else -> R.string.worker_status_offline
     }
 
     private fun stringResForStepKey(key: String): Int = when (key) {

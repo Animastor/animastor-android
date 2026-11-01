@@ -472,4 +472,16 @@ class WorkerSetupHelpersTest {
         assertTrue(BetaSettingsHelpers.looksLikeWorkerToken("wrk.abc.def123"))
         assertFalse(BetaSettingsHelpers.looksLikeWorkerToken("not-a-token"))
     }
+
+    // ── Worker Key preview (web parity: maskSecret(), same fixtures) ──────
+
+    @Test
+    fun maskSecret_keepsShortPreviewAndNeverExposesTheMiddle() {
+        val key = "wrk.abcdef0123456789"
+        assertEquals("wrk.…6789", WorkerSetupHelpers.maskSecret(key))
+        assertFalse(WorkerSetupHelpers.maskSecret(key).contains("abcdef0123"))
+        assertEquals("•••••", WorkerSetupHelpers.maskSecret("short"))
+        assertEquals("", WorkerSetupHelpers.maskSecret(""))
+        assertEquals("", WorkerSetupHelpers.maskSecret(null))
+    }
 }
