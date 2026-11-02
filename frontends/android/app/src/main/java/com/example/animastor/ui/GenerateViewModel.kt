@@ -338,6 +338,29 @@ class GenerateViewModel(
     private val _layerConfigLoaded = MutableStateFlow(false)
     val layerConfigLoadedFlow: StateFlow<Boolean> = _layerConfigLoaded.asStateFlow()
 
+    // ── Layer-config write serialization (E2E 02.11) ─────────────
+    // One PUT per user action: LayerConfigSync coalesces one action's
+    // setters, keeps at most one PUT on the wire and always sends the latest
+    // flags (a stale image=true landed 0.36 s after the user switched it off).
+
+    /** True while a layer-config PUT is unconfirmed — toggle chips disabled. */
+    private val _layerConfigSaving = MutableStateFlow(false)
+    val layerConfigSavingFlow: StateFlow<Boolean> = _layerConfigSaving.asStateFlow()
+
+    private val layerSync = LayerConfigSync(
+        initial = LayerFlags(
+            audio = _audioEnabled.value,
+            image = imageEnabled,
+            video = _videoEnabled.value,
+            vbook = _vbookEnabled.value
+        ),
+        persist = { flags -> persistLayerFlags(flags) },
+        onChange = { state ->
+            _layerConfigSaving.value = state.pending
+            state.lastError?.let { Log.w(TAG, "persistLayerConfig failed: $it (will retry on next toggle)") }
+        }
+    )
+
     // ── Parallel / Subagent AI Analysis (web parity f661a922) ────
     // analysisMode governs the orchestrator path the backend uses for the
     // first AI phase (characters + locations + voices). Defaults to
@@ -387,22 +410,39 @@ class GenerateViewModel(
 
     fun setAudioEnabled(enabled: Boolean) {
         _audioEnabled.value = enabled
-        viewModelScope.launch { persistLayerConfig() }
+        requestLayerConfig()
     }
 
     fun setImageEnabled(enabled: Boolean) {
         imageEnabled = enabled
-        viewModelScope.launch { persistLayerConfig() }
+        requestLayerConfig()
     }
 
     fun setVideoEnabled(enabled: Boolean) {
         _videoEnabled.value = enabled
-        viewModelScope.launch { persistLayerConfig() }
+        requestLayerConfig()
     }
 
     fun setVBookEnabled(enabled: Boolean) {
         _vbookEnabled.value = enabled
-        viewModelScope.launch { persistLayerConfig() }
+        requestLayerConfig()
+    }
+
+    /**
+     * Hand the CURRENT flags to the writer and flush. Rapid clicks collapse:
+     * every flush re-reads the desired flags, so at most one PUT is on the
+     * wire and it always carries the final state.
+     */
+    private fun requestLayerConfig() {
+        layerSync.request(
+            LayerFlags(
+                audio = _audioEnabled.value,
+                image = imageEnabled,
+                video = _videoEnabled.value,
+                vbook = _vbookEnabled.value
+            )
+        )
+        viewModelScope.launch { layerSync.flush() }
     }
 
     suspend fun loadLayerConfig() {
@@ -422,6 +462,16 @@ class GenerateViewModel(
                 // (same coercion as the Settings page).
                 analysisMode = analysisModeFromWire(cfg.analysis_mode)
                 cfg.analysis_parallelism?.let { analysisParallelism = it.coerceIn(1, 8) }
+                // Server state is the new baseline; a PUT already on the wire
+                // is not clobbered (reset is a no-op while in flight).
+                layerSync.reset(
+                    LayerFlags(
+                        audio = cfg.audio_enabled,
+                        image = cfg.image_enabled,
+                        video = cfg.video_enabled,
+                        vbook = cfg.vbook_enabled
+                    )
+                )
                 _layerConfigLoaded.value = true
                 Log.i(TAG, "loadLayerConfig: a=${cfg.audio_enabled} i=${cfg.image_enabled} v=${cfg.video_enabled} vb=${cfg.vbook_enabled} am=$analysisMode ap=$analysisParallelism")
             }
@@ -447,20 +497,16 @@ class GenerateViewModel(
             }
     }
 
-    private suspend fun persistLayerConfig() {
+    private suspend fun persistLayerFlags(flags: LayerFlags) {
         val currentBookId = bookId
         if (currentBookId.isBlank()) return
-        runCatching {
-            val cfg = _repository.putLayerConfig(currentBookId, LayerConfigUpdate(
-                audio_enabled = _audioEnabled.value,
-                image_enabled = imageEnabled,
-                video_enabled = _videoEnabled.value,
-                vbook_enabled = _vbookEnabled.value
-            ))
-            Log.i(TAG, "persistLayerConfig: a=${cfg.audio_enabled} i=${cfg.image_enabled} v=${cfg.video_enabled} vb=${cfg.vbook_enabled}")
-        }.onFailure { e ->
-            Log.w(TAG, "persistLayerConfig failed: ${e.message}")
-        }
+        val cfg = _repository.putLayerConfig(currentBookId, LayerConfigUpdate(
+            audio_enabled = flags.audio,
+            image_enabled = flags.image,
+            video_enabled = flags.video,
+            vbook_enabled = flags.vbook
+        ))
+        Log.i(TAG, "persistLayerConfig: a=${cfg.audio_enabled} i=${cfg.image_enabled} v=${cfg.video_enabled} vb=${cfg.vbook_enabled}")
     }
 
     // ── Generation ───────────────────────────────────────────────

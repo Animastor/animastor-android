@@ -185,6 +185,20 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             }
         }
 
+        // ── Layer-config PUT in flight (E2E 02.11) ──
+        // The chip is blocked until the server confirms the new flags: a
+        // second click during the PUT used to race a stale snapshot
+        // (image=true for 0.36 s after the user switched it off).
+        lifecycleScope.launch {
+            viewModel.layerConfigSavingFlow.collect { saving ->
+                val alpha = if (saving) 0.5f else 1f
+                listOf(b.vbookToggle, b.audioToggle, b.imageToggle, b.videoToggle).forEach {
+                    it.isEnabled = !saving
+                    it.alpha = alpha
+                }
+            }
+        }
+
         // ── Auto-detect active generation tasks from previous sessions ──
         // При входе на экран Generator проверяем WorkerCounts: если есть
         // активные воркеры (восстановленные backend'ом после restart'а),
