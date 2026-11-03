@@ -185,6 +185,15 @@
     <string name="task_cancelled">Cancelled</string>
     <string name="task_retry">Retry</string>
     <string name="task_continue">Continue</string>
+    <!-- GPU retry policy (2026-11-02) — failed / retrying rows -->
+    <string name="task_failed_comfy_nodes">ComfyUI: required nodes missing — %1$s</string>
+    <string name="task_failed_comfy_model">ComfyUI: model not found — %1$s</string>
+    <string name="task_failed_comfy_rejected">ComfyUI rejected the job — %1$s</string>
+    <string name="task_failed_transient">Worker did not respond, retries exhausted — %1$s</string>
+    <string name="task_failed_oom">GPU out of memory</string>
+    <string name="task_failed_unknown">Generation failed — %1$s</string>
+    <string name="task_retrying">Retry %1$d/%2$d in %3$s</string>
+    <string name="task_retrying_now">Retrying…</string>
     <string name="worker_type_audio">audio</string>
     <string name="worker_type_image">image</string>
     <string name="worker_type_video">video</string>

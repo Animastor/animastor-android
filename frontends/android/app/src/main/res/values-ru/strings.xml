@@ -255,6 +255,15 @@
     <string name="task_cancelled">Отменено</string>
     <string name="task_retry">Повторить</string>
     <string name="task_continue">Продолжить</string>
+    <!-- GPU retry policy (2026-11-02) — failed / retrying rows -->
+    <string name="task_failed_comfy_nodes">ComfyUI: нет нужных нод — %1$s</string>
+    <string name="task_failed_comfy_model">ComfyUI: модель не найдена — %1$s</string>
+    <string name="task_failed_comfy_rejected">ComfyUI отклонил задачу — %1$s</string>
+    <string name="task_failed_transient">Воркер не ответил, повторы исчерпаны — %1$s</string>
+    <string name="task_failed_oom">Не хватило видеопамяти GPU</string>
+    <string name="task_failed_unknown">Ошибка генерации — %1$s</string>
+    <string name="task_retrying">Повтор %1$d/%2$d через %3$s</string>
+    <string name="task_retrying_now">Повтор…</string>
     <string name="worker_type_audio">аудио</string>
     <string name="worker_type_image">изображения</string>
     <string name="worker_type_video">видео</string>

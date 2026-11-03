@@ -538,14 +538,40 @@ data class ProgressTask(
     /** Server-set — true when this task has been cancelled via cancel-worker API. */
     val cancelled: Boolean = false,
     /** Stage 155 (command-only generation): registry task status —
-     *  active | completed | cancelled | blocked | interrupted. Absent on older backends. */
+     *  active | completed | cancelled | blocked | interrupted | failed.
+     *  Absent on older backends. */
     val status: String? = null,
     /** No live worker of the type — the command is blocked (no auto-retry). */
     val blocked: Boolean = false,
     /** "no_worker:<type>" when blocked, else null. */
     val blocked_reason: String? = null,
     /** Interrupted by a backend restart — resumed only by a new command. */
-    val interrupted: Boolean = false
+    val interrupted: Boolean = false,
+    /** Terminally failed command (GPU retry policy 2026-11-02) — visible, not
+     *  running, restarted only by a new explicit command. */
+    val failed: Boolean = false,
+    /** The scene the command failed on, or null. */
+    val failed_scene: FailedSceneRef? = null,
+    /** Class of the terminal error (`failed`) / of the last error while a
+     *  retry pause runs (`active`); absent on older backends. */
+    val error_class: String? = null,
+    /** Refinement of error_class (comfy_rejected, cuda_oom, …) or null. */
+    val error_code: String? = null,
+    /** Short, stack-free error text (≤200 chars) or null. */
+    val error_message: String? = null,
+    /** true while an `active` row waits out a server-side retry pause. */
+    val retrying: Boolean = false,
+    /** Retry number / maximum (transient — 2, oom — 1) while retrying. */
+    val retry_no: Int? = null,
+    val retry_max: Int? = null,
+    /** When the server retries (ms epoch) while retrying, else null. */
+    val retry_at: Long? = null
+)
+
+/** The scene a failed command died on (wire shape of `failed_scene`). */
+data class FailedSceneRef(
+    val chapter_id: String? = null,
+    val scene_id: String? = null
 )
 
 // ======================================================
