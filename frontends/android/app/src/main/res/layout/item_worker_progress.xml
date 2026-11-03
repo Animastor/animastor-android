@@ -101,4 +101,28 @@
         app:indicatorColor="?attr/colorSecondary"
         app:trackColor="?attr/colorSurfaceVariant" />
 
+    <!-- GPU retry policy — retry-pause countdown for retrying (active) rows -->
+    <TextView
+        android:id="@+id/workerRetryNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="?attr/colorSecondary"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+    <!-- GPU retry policy — failed rows: the failed-scene caption (scope != current_scene);
+         retrying rows: the reason of the last error under the countdown -->
+
+    <TextView
+        android:id="@+id/workerCaption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
 </LinearLayout>

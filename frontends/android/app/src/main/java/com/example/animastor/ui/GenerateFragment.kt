@@ -484,31 +484,77 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
      * Refresh timer display on all currently visible worker rows.
      * Called every 500ms from a dedicated coroutine.
      *
-     * Each row is tagged with its elapsed seconds:
-     *   - tag >= 0 → frozen (done worker). Show the frozen value directly.
-     *   - tag < 0  → live (active worker). Compute from viewModel.timerStartedAt.
+     * Rows are tagged with their TaskRow: a done row shows its frozen
+     * elapsedSeconds, any other row the live (now - timerStartedAt) value.
+     * The retry-pause countdown (GPU retry policy) ticks here too — by the
+     * CLIENT clock; the next progress-panel poll re-renders the row.
      */
     private fun refreshTimerDisplay() {
         val b = binding ?: return
         val containers = listOf(b.vbookProgressList, b.audioProgressList, b.imageProgressList, b.videoProgressList)
+        val now = System.currentTimeMillis()
+        val liveSec = if (viewModel.timerStartedAt > 0L) (now - viewModel.timerStartedAt) / 1000L
+            else viewModel.finalElapsedSeconds
         for (container in containers) {
             for (i in 0 until container.childCount) {
                 val row = container.getChildAt(i)
-                val tv = row.findViewById<TextView>(R.id.workerTimer)
-                if (tv != null) {
-                    val tag = row.tag
-                    val sec = if (tag is Long && tag >= 0L) {
-                        tag  // frozen — use stored value
-                    } else if (viewModel.timerStartedAt > 0L) {
-                        (System.currentTimeMillis() - viewModel.timerStartedAt) / 1000L
-                    } else {
-                        viewModel.finalElapsedSeconds
+                val tag = row.tag as? TaskRow
+                row.findViewById<TextView>(R.id.workerTimer)?.let { tv ->
+                    tv.text = formatTimerText(if (tag != null && tag.done) tag.elapsedSeconds else liveSec)
+                }
+                if (tag != null && tag.retrying) {
+                    row.findViewById<TextView>(R.id.workerRetryNote)?.let { tv ->
+                        val note = retryNoteText(tag, now)
+                        tv.text = note ?: ""
+                        tv.visibility = if (note != null) View.VISIBLE else View.GONE
                     }
-                    tv.text = formatTimerText(sec)
                 }
             }
         }
-        refreshAnalysisTimers(System.currentTimeMillis())
+        refreshAnalysisTimers(now)
+    }
+
+    /** Localized template for a [TaskStatusHelpers.failureText] key (same key names as web i18n.ts). */
+    private fun failureTemplate(key: String): String = getString(when (key) {
+        "task_failed_comfy_nodes" -> R.string.task_failed_comfy_nodes
+        "task_failed_comfy_model" -> R.string.task_failed_comfy_model
+        "task_failed_comfy_rejected" -> R.string.task_failed_comfy_rejected
+        "task_failed_transient" -> R.string.task_failed_transient
+        "task_failed_oom" -> R.string.task_failed_oom
+        else -> R.string.task_failed_unknown
+    })
+
+    /** Classified failure reason of a row (terminal for failed, last error while retrying). */
+    private fun failureReason(taskRow: TaskRow): String {
+        val f = TaskStatusHelpers.failureText(taskRow.errorClass, taskRow.errorCode, taskRow.errorMessage, taskRow.type)
+        return TaskStatusHelpers.formatFailureText(failureTemplate(f.key), f.arg)
+    }
+
+    /** «Повтор 1/2 через 00:27» / «Повтор…», or null when the row is not retrying. */
+    private fun retryNoteText(taskRow: TaskRow, now: Long): String? {
+        val retry = TaskStatusHelpers.retryLine(taskRow.retrying, taskRow.retryNo, taskRow.retryMax, taskRow.retryAt, now)
+            ?: return null
+        return if (retry.key == "task_retrying") {
+            getString(R.string.task_retrying, retry.args[0], retry.args[1], retry.args[2])
+        } else getString(R.string.task_retrying_now)
+    }
+
+    /**
+     * GPU retry policy §ТЗ фронтам п.5: an ACTIVE row waiting out a server-side
+     * retry pause keeps its spinner/timer; below it — the countdown line and
+     * (optionally) the reason of the last error. The client performs no action.
+     */
+    private fun bindRetryNotes(rowBinding: ItemWorkerProgressBinding, taskRow: TaskRow) {
+        val note = retryNoteText(taskRow, System.currentTimeMillis())
+        rowBinding.workerRetryNote.text = note ?: ""
+        rowBinding.workerRetryNote.visibility = if (note != null) View.VISIBLE else View.GONE
+        val hasError = taskRow.errorClass != null || taskRow.errorCode != null || taskRow.errorMessage != null
+        if (note != null && hasError) {
+            rowBinding.workerCaption.text = failureReason(taskRow)
+            rowBinding.workerCaption.visibility = View.VISIBLE
+        } else {
+            rowBinding.workerCaption.visibility = View.GONE
+        }
     }
 
     private fun renderTaskRowsToSections(rows: List<TaskRow>) {
@@ -551,6 +597,26 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
                 rowBinding.workerTimer.visibility = View.GONE
                 rowBinding.workerProgressBar.visibility = View.GONE
                 rowBinding.workerStopButton.visibility = View.GONE
+            } else if (taskRow.state == TaskRowState.FAILED) {
+                // GPU retry policy — terminally failed command: classified
+                // reason, no spinner, no timer, no auto-retry; «Повторить»
+                // sends a NEW /regenerate (same type + scope, never automatic).
+                rowBinding.workerName.text = failureReason(taskRow) + " — " + scopedTaskLabel(taskRow)
+                rowBinding.workerName.setTextColor(textColor)
+                rowBinding.workerCount.visibility = View.GONE
+                rowBinding.workerPercent.visibility = View.GONE
+                rowBinding.workerTimer.visibility = View.GONE
+                rowBinding.workerProgressBar.visibility = View.GONE
+                rowBinding.workerStopButton.visibility = View.GONE
+                rowBinding.workerRetryButton.text = getString(R.string.task_retry)
+                rowBinding.workerRetryButton.visibility = View.VISIBLE
+                rowBinding.workerRetryButton.setOnClickListener { onRetryRow(taskRow) }
+                // §ТЗ фронтам п.4: the scene the command died on, from the
+                // already loaded book (not repeated for a single-scene scope).
+                val caption = if (taskRow.scope != "current_scene")
+                    TaskStatusHelpers.failedSceneCaption(bookData?.chapters, taskRow.failedScene) else null
+                rowBinding.workerCaption.text = caption ?: ""
+                rowBinding.workerCaption.visibility = if (caption != null) View.VISIBLE else View.GONE
             } else if (TaskStatusHelpers.isStopped(taskRow.state)) {
                 // Stage 155: blocked (no live worker) / interrupted (backend
                 // restart) — no spinner, no timer; only a new command restarts it.
@@ -584,8 +650,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
                 rowBinding.workerProgressBar.setIndicatorColor(accentColor)
                 rowBinding.workerStopButton.visibility = View.VISIBLE
                 setupTaskStopButton(rowBinding.workerStopButton, row, taskRow)
-                // Tag for refreshTimerDisplay: -1L = live, compute from timerStartedAt
-                row.tag = -1L
+                // Tag for refreshTimerDisplay: TaskRow = live, compute from timerStartedAt
+                row.tag = taskRow
+                bindRetryNotes(rowBinding, taskRow)
             } else if (taskRow.done) {
                 rowBinding.workerName.text = getString(R.string.generation_done) + " — " + scopedTaskLabel(taskRow)
                 rowBinding.workerName.setTextColor(greenColor)
@@ -602,8 +669,8 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
                 rowBinding.workerProgressBar.setProgressCompat(100, true)
                 rowBinding.workerProgressBar.setIndicatorColor(greenColor)
                 rowBinding.workerStopButton.visibility = View.GONE
-                // Tag for refreshTimerDisplay: frozen elapsed (>= 0)
-                row.tag = taskRow.elapsedSeconds
+                // Tag for refreshTimerDisplay: done → frozen elapsedSeconds
+                row.tag = taskRow
             } else {
                 rowBinding.workerName.text = scopedTaskLabel(taskRow)
                 rowBinding.workerName.setTextColor(textColor)
@@ -621,8 +688,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
                 rowBinding.workerProgressBar.setIndicatorColor(accentColor)
                 rowBinding.workerStopButton.visibility = View.VISIBLE
                 setupTaskStopButton(rowBinding.workerStopButton, row, taskRow)
-                // Tag for refreshTimerDisplay: -1L = live, compute from timerStartedAt
-                row.tag = -1L
+                // Tag for refreshTimerDisplay: TaskRow = live, compute from timerStartedAt
+                row.tag = taskRow
+                bindRetryNotes(rowBinding, taskRow)
             }
 
             container.addView(row)

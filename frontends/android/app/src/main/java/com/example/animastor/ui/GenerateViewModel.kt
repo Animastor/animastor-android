@@ -19,6 +19,7 @@ import com.example.animastor.repository.ResourceInvalidations
 import com.example.animastor.repository.SharedPrefsKeyValueStore
 import java.util.concurrent.ConcurrentHashMap
 import com.example.animastor.repository.DirtyScene
+import com.example.animastor.repository.FailedSceneRef
 import com.example.animastor.repository.ImportTxtResponse
 import com.example.animastor.repository.LayerConfigUpdate
 import com.example.animastor.repository.ReorderChapter
@@ -1851,7 +1852,7 @@ class GenerateViewModel(
             sw: com.example.animastor.repository.ProgressTask,
             label: String
         ) {
-            val preState = TaskStatusHelpers.taskRowState(sw.status, sw.done, sw.cancelled, sw.blocked, sw.interrupted)
+            val preState = TaskStatusHelpers.taskRowState(sw.status, sw.done, sw.cancelled, sw.blocked, sw.interrupted, sw.failed)
             val stopped = TaskStatusHelpers.isStopped(preState)
             // A stopped command stays visible even without countable units.
             if (sw.total <= 0 && !stopped) return
@@ -1862,7 +1863,7 @@ class GenerateViewModel(
             val ready = maxOf(sw.ready, taskReadyFloor[taskKey] ?: 0)
             val done = !stopped && preState != TaskRowState.CANCELLED &&
                 (sw.done || (ready >= sw.total && ready > 0))
-            val state = TaskStatusHelpers.taskRowState(sw.status, done, sw.cancelled, sw.blocked, sw.interrupted)
+            val state = TaskStatusHelpers.taskRowState(sw.status, done, sw.cancelled, sw.blocked, sw.interrupted, sw.failed)
             // STALE-DONE GATE (identical to mobile web) — the backend keeps
             // recently-completed tasks in the panel for ~30s (TERMINAL_RETENTION_MS)
             // and can report a task whose assets are all ready as done. On screen
@@ -1907,7 +1908,15 @@ class GenerateViewModel(
                 cancelled = sw.cancelled,
                 elapsedSeconds = elapsedSeconds,
                 state = state,
-                blockedType = if (state == TaskRowState.BLOCKED) TaskStatusHelpers.blockedWorkerType(sw.blocked_reason, sw.type) else null
+                blockedType = if (state == TaskRowState.BLOCKED) TaskStatusHelpers.blockedWorkerType(sw.blocked_reason, sw.type) else null,
+                errorClass = sw.error_class,
+                errorCode = sw.error_code,
+                errorMessage = sw.error_message,
+                failedScene = sw.failed_scene,
+                retrying = sw.retrying,
+                retryNo = sw.retry_no,
+                retryMax = sw.retry_max,
+                retryAt = sw.retry_at
             ))
         }
 
@@ -2093,11 +2102,23 @@ data class TaskRow(
      * -1 means the timer is not running (should not happen for visible workers).
      */
     val elapsedSeconds: Long = -1L,
-    /** Stage 155 display state: blocked / interrupted rows are stopped (no
-     *  spinner, no timer) and wait for a new command. */
+    /** Stage 155 display state: blocked / interrupted / failed rows are
+     *  stopped (no spinner, no timer) and wait for a new command. */
     val state: TaskRowState = if (done) TaskRowState.DONE else if (cancelled) TaskRowState.CANCELLED else TaskRowState.ACTIVE,
     /** Missing worker type of a blocked row (from blocked_reason). */
-    val blockedType: String? = null
+    val blockedType: String? = null,
+    /** Classified terminal/last error (GPU retry policy): failureText input. */
+    val errorClass: String? = null,
+    val errorCode: String? = null,
+    val errorMessage: String? = null,
+    /** Scene the command failed on (failed rows; aggregated rows only). */
+    val failedScene: FailedSceneRef? = null,
+    /** true while an active row waits out a server-side retry pause. */
+    val retrying: Boolean = false,
+    val retryNo: Int? = null,
+    val retryMax: Int? = null,
+    /** Retry due time (ms epoch); drives the client-side countdown. */
+    val retryAt: Long? = null
 )
 
 /**
