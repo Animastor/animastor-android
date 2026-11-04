@@ -32,7 +32,17 @@ data class RegenerateRequest(
     val worker_types: List<String>? = null,
     val scope: String? = null,
     val chapter_id: String? = null,
-    val scene_id: String? = null
+    val scene_id: String? = null,
+    /** The click that sent the command (additive, 2026-11-04; web parity). */
+    val client_action: ClientAction? = null
+)
+
+/** `client_action` of POST /regenerate — which button sent the command. */
+data class ClientAction(
+    val kind: String = "user_click",
+    val source: String,
+    val action_id: String,
+    val trusted: Boolean = true
 )
 
 data class GenericResponse(
