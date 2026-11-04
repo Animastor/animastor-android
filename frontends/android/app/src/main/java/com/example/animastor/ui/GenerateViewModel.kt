@@ -526,11 +526,24 @@ class GenerateViewModel(
         data class LayerDisabled(val workerTypes: List<String>) : GenerationResult()
     }
 
-    fun startGeneration(req: GenerationRequest, onResult: (GenerationResult) -> Unit) {
+    fun startGeneration(
+        req: GenerationRequest,
+        action: GeneratorCommands.UserAction?,
+        onResult: (GenerationResult) -> Unit
+    ) {
         if (bookId.isBlank()) {
             onResult(GenerationResult.Failed("No book"))
             return
         }
+        // reports/2026-11-04/regenerate-sweep-fix.md — fail-closed: a GPU
+        // command only from a click handler (no action → no request, no
+        // RUNNING state). Web parity: generateStore.startGeneration.
+        if (!GeneratorCommands.mayStart(action)) {
+            Log.w(TAG, "startGeneration refused: no explicit user action")
+            onResult(GenerationResult.Failed("no_user_action"))
+            return
+        }
+        val clickAction = action!!
         _generationStatus.value = GenerationStatus.RUNNING
         _isRegenerating.value = true
 
@@ -564,7 +577,8 @@ class GenerateViewModel(
                     workerTypes = req.workerTypes,
                     scope = req.scope,
                     chapterId = req.chapterId,
-                    sceneId = req.sceneId
+                    sceneId = req.sceneId,
+                    clientAction = GeneratorCommands.clientAction(clickAction)
                 )
                 _dirtySummary.value = res.summary
                 _dirtyScenes.value = res.dirty_scenes ?: emptyList()
@@ -615,10 +629,10 @@ class GenerateViewModel(
      * /regenerate with the row's worker type and scope is sent.
      * Returns false when the row has nothing to repeat.
      */
-    fun retryStoppedTask(row: TaskRow, onResult: (GenerationResult) -> Unit): Boolean {
+    fun retryStoppedTask(row: TaskRow, action: GeneratorCommands.UserAction, onResult: (GenerationResult) -> Unit): Boolean {
         val cmd = TaskStatusHelpers.retryCommandFor(row.state, row.type, row.scope, row.chapterId, row.sceneId)
             ?: return false
-        startGeneration(GenerationRequest(cmd.workerTypes, cmd.scope, cmd.chapterId, cmd.sceneId), onResult)
+        startGeneration(GenerationRequest(cmd.workerTypes, cmd.scope, cmd.chapterId, cmd.sceneId), action, onResult)
         return true
     }
 

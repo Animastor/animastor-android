@@ -1037,7 +1037,8 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         }
         showScopeDialog { scope, chId, scId ->
             viewModel.startGeneration(
-                GenerateViewModel.GenerationRequest(workerTypes = listOf("audio"), scope = scope, chapterId = chId, sceneId = scId)
+                GenerateViewModel.GenerationRequest(workerTypes = listOf("audio"), scope = scope, chapterId = chId, sceneId = scId),
+                GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)
             ) { result -> showGenerationResult(result, R.string.progress_label_audio) }
         }
     }
@@ -1054,7 +1055,8 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         }
         showScopeDialog { scope, chId, scId ->
             viewModel.startGeneration(
-                GenerateViewModel.GenerationRequest(workerTypes = listOf("image"), scope = scope, chapterId = chId, sceneId = scId)
+                GenerateViewModel.GenerationRequest(workerTypes = listOf("image"), scope = scope, chapterId = chId, sceneId = scId),
+                GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)
             ) { result -> showGenerationResult(result, R.string.progress_label_image) }
         }
     }
@@ -1071,7 +1073,8 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         }
         showScopeDialog { scope, chId, scId ->
             viewModel.startGeneration(
-                GenerateViewModel.GenerationRequest(workerTypes = listOf("video"), scope = scope, chapterId = chId, sceneId = scId)
+                GenerateViewModel.GenerationRequest(workerTypes = listOf("video"), scope = scope, chapterId = chId, sceneId = scId),
+                GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)
             ) { result -> showGenerationResult(result, R.string.progress_label_video) }
         }
     }
@@ -1101,7 +1104,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
     /** Stage 155 — «Повторить» / «Продолжить»: a NEW explicit command (same type + scope). */
     private fun onRetryRow(taskRow: TaskRow) {
         val type = TaskStatusHelpers.commandWorkerType(taskRow.type) ?: return
-        viewModel.retryStoppedTask(taskRow) { result -> showGenerationResult(result, layerLabelResFor(type)) }
+        viewModel.retryStoppedTask(taskRow, GeneratorCommands.userAction(GeneratorCommands.SOURCE_RETRY_ROW)) { result ->
+            showGenerationResult(result, layerLabelResFor(type))
+        }
     }
 
     private fun onStopClicked(type: String) {
@@ -1283,6 +1288,11 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         // Default selection: whole_book
         binding.scopeWholeBook.isChecked = true
 
+        // reports/2026-11-04/regenerate-sweep-fix.md: the tap that opened the
+        // dialog (or a double tap) never also confirms it — «Старт» is armed
+        // GeneratorCommands.SCOPE_DIALOG_ARM_MS after the dialog appeared.
+        val openedAt = android.os.SystemClock.uptimeMillis()
+
         AppDialogs.action(
             ctx = requireContext(),
             title = getString(R.string.generate_dialog_title),
@@ -1290,14 +1300,17 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             cancelText = getString(R.string.dialog_cancel),
             actionText = getString(R.string.dialog_start),
         ) { dlg ->
+            if (!GeneratorCommands.armed(openedAt, android.os.SystemClock.uptimeMillis())) {
+                Log.i(TAG, "scope dialog: «Start» ignored (tap within ${GeneratorCommands.SCOPE_DIALOG_ARM_MS} ms of opening)")
+                return@action
+            }
             val scope = when (binding.scopeGroup.checkedRadioButtonId) {
                 R.id.scopeCurrentScene -> "current_scene"
                 R.id.scopeCurrentChapter -> "current_chapter"
                 R.id.scopeFromCurrentScene -> "from_current_scene"
                 else -> "whole_book"
             }
-            val chId: String? = if (scope != "whole_book") pos.chapterId else null
-            val scId: String? = if (scope == "current_scene" || scope == "from_current_scene") pos.sceneId else null
+            val (chId, scId) = GeneratorCommands.scopeTargets(scope, pos.chapterId, pos.sceneId)
             dlg.dismiss()
             onStart(scope, chId, scId)
         }.show()

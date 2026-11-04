@@ -473,16 +473,18 @@ class Repository(
         workerTypes: List<String>? = null,
         scope: String? = null,
         chapterId: String? = null,
-        sceneId: String? = null
+        sceneId: String? = null,
+        clientAction: ClientAction? = null
     ): RegenerateResponse {
-        Log.i("Repo", "regenerateBookScoped: $bookId workers=$workerTypes scope=$scope ch=$chapterId sc=$sceneId")
+        Log.i("Repo", "regenerateBookScoped: $bookId workers=$workerTypes scope=$scope ch=$chapterId sc=$sceneId source=${clientAction?.source ?: "absent"}")
         return api.regenerateBookScoped(bookId, RegenerateRequest(
             new_book = newBook,
             rebuild_all = rebuildAll,
             worker_types = workerTypes,
             scope = scope,
             chapter_id = chapterId,
-            scene_id = sceneId
+            scene_id = sceneId,
+            client_action = clientAction
         ))
     }
 
