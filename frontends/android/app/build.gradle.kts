@@ -30,8 +30,8 @@ android {
         applicationId = "com.example.animastor"
         minSdk = 24
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.2.6"
+        versionCode = 9
+        versionName = "0.2.7"
     }
 
     val baseUrl = project.findProperty("BASE_URL") as? String ?: "https://app.animastor.org/"
