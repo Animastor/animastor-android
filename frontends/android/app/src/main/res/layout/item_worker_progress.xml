@@ -61,23 +61,23 @@
             android:gravity="end"
             android:text="00:00:00" />
 
-        <!-- Stage 155 — «Повторить» / «Продолжить» for a blocked / interrupted
-             task: sends a NEW explicit command (never automatic). -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/workerRetryButton"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
+        <!-- Задача K (2026-11-05) — ▶ «Продолжить» of a stopped (failed /
+             blocked / interrupted) row: same size and style as ■; sends a NEW
+             explicit command (never automatic). -->
+        <ImageButton
+            android:id="@+id/workerContinueButton"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:layout_marginStart="6dp"
-            android:minWidth="0dp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:textSize="12sp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
+            android:padding="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            android:contentDescription="@string/task_continue"
+            android:tint="@color/cinema_accent"
             android:visibility="gone" />
 
-        <!-- Stop button — visible only for active (non-done) workers -->
+        <!-- Stop button — active rows: ■ «Остановить» (popup); stopped rows:
+             ■ «Снять» (cancel-worker by task_id, the row disappears) -->
         <ImageButton
             android:id="@+id/workerStopButton"
             android:layout_width="32dp"

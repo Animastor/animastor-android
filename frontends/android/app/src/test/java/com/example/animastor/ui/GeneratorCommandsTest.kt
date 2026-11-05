@@ -82,4 +82,56 @@ class GeneratorCommandsTest {
         val a = GeneratorCommands.userAction(GeneratorCommands.SOURCE_RETRY_ROW)
         assertEquals("generator.retry_row", GeneratorCommands.clientAction(a).source)
     }
+
+    // ── Задача K (2026-11-05): ▶ / ■ of a stopped row ──────────────
+
+    @Test fun stoppedRowIgnoresTapsRightAfterItAppeared() {
+        val g = GeneratorCommands.StoppedRowGuard()
+        val k = GeneratorCommands.stoppedRowKey("t1", "audio", ch, null, TaskRowState.INTERRUPTED)
+        g.onRendered(k, 1_000)
+        assertFalse(g.accept(k, 1_000))
+        assertFalse(g.accept(k, 1_000 + GeneratorCommands.STOPPED_ROW_ARM_MS - 1))
+        assertTrue(g.accept(k, 1_000 + GeneratorCommands.STOPPED_ROW_ARM_MS))
+    }
+
+    @Test fun stoppedRowDoubleTapIsOneAction() {
+        val g = GeneratorCommands.StoppedRowGuard()
+        val k = GeneratorCommands.stoppedRowKey("t1", "audio", ch, null, TaskRowState.BLOCKED)
+        g.onRendered(k, 0)
+        assertTrue(g.accept(k, 5_000))
+        assertFalse("second tap within 400 ms", g.accept(k, 5_100))
+        assertTrue(g.accept(k, 5_000 + GeneratorCommands.STOPPED_ROW_ARM_MS))
+    }
+
+    @Test fun stoppedRowIgnoresTapsWhileItsRequestIsInFlight() {
+        val g = GeneratorCommands.StoppedRowGuard()
+        val k = GeneratorCommands.stoppedRowKey("t1", "audio", ch, null, TaskRowState.FAILED)
+        g.onRendered(k, 0)
+        assertTrue(g.accept(k, 1_000))
+        g.begin(k)
+        assertFalse(g.accept(k, 10_000))
+        g.end(k)
+        assertTrue(g.accept(k, 10_000))
+    }
+
+    @Test fun anActiveRowTurningStoppedIsArmedAfresh() {
+        // the same task: a different state → a different key → a fresh 400 ms
+        val active = GeneratorCommands.stoppedRowKey("t1", "audio", ch, null, TaskRowState.ACTIVE)
+        val stopped = GeneratorCommands.stoppedRowKey("t1", "audio", ch, null, TaskRowState.INTERRUPTED)
+        assertNotEquals(active, stopped)
+        val g = GeneratorCommands.StoppedRowGuard()
+        g.onRendered(stopped, 9_000)
+        g.retain(setOf(stopped))
+        assertFalse(g.accept(stopped, 9_100))
+        // a row first seen by a tap (never rendered) is not armed either
+        val other = GeneratorCommands.stoppedRowKey("t2", "audio", ch, null, TaskRowState.INTERRUPTED)
+        assertFalse(g.accept(other, 20_000))
+    }
+
+    @Test fun dismissSucceedsOnlyWhenTheBackendCancelledThatTask() {
+        assertTrue(GeneratorCommands.dismissSucceeded("t1", listOf("t1")))
+        assertFalse("older backend: non-active task not cancelled", GeneratorCommands.dismissSucceeded("t1", emptyList()))
+        assertFalse(GeneratorCommands.dismissSucceeded("t1", null))
+        assertFalse(GeneratorCommands.dismissSucceeded(null, listOf("t1")))
+    }
 }

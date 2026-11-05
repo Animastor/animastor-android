@@ -1756,7 +1756,7 @@ class GenerateViewModel(
      * The backend handles per-type cancellation (leases, counters, GPU hub).
      * The frontend just tells the backend what to cancel.
      */
-    fun cancelTask(type: String, taskId: String? = null) {
+    fun cancelTask(type: String, taskId: String? = null, onResult: ((Boolean) -> Unit)? = null) {
         Log.i(TAG, "cancelTask: type=$type taskId=$taskId bookId=$bookId")
         if (bookId.isBlank()) return
 
@@ -1778,11 +1778,32 @@ class GenerateViewModel(
         viewModelScope.launch {
             runCatching {
                 _repository.cancelWorker(bookId, type, taskId)
-            }.onSuccess {
+            }.onSuccess { res ->
                 Log.i(TAG, "cancelTask: backend cancelled type=$type taskId=$taskId successfully")
+                onResult?.invoke(taskId == null || GeneratorCommands.dismissSucceeded(taskId, res.task_ids))
             }.onFailure { e ->
                 Log.w(TAG, "cancelTask: backend call failed: ${e.message}")
+                onResult?.invoke(false)
             }
+        }
+    }
+
+    /** Task ids of stopped rows the user removed with «■ Снять» (задача K).
+     *  The backend keeps a cancelled task ~30 s as a «cancelled» row; the
+     *  Generator hides it at once instead. */
+    private val _dismissedTaskIds = mutableSetOf<String>()
+    val dismissedTaskIds: Set<String> get() = _dismissedTaskIds
+
+    /**
+     * Задача K — «■ Снять» on a stopped (failed / blocked / interrupted) row:
+     * the same cancel-worker request as the ■ of an active row; on success the
+     * row disappears. Never sends /regenerate.
+     */
+    fun dismissStoppedTask(row: TaskRow, onResult: (Boolean) -> Unit) {
+        val taskId = row.taskId ?: return onResult(false)
+        cancelTask(row.type, taskId) { ok ->
+            if (ok) _dismissedTaskIds.add(taskId)
+            onResult(ok)
         }
     }
 

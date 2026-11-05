@@ -499,6 +499,8 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             for (i in 0 until container.childCount) {
                 val row = container.getChildAt(i)
                 val tag = row.tag as? TaskRow
+                // Задача K: a stopped row shows its status in the timer slot.
+                if (tag != null && TaskStatusHelpers.isStopped(tag.state)) continue
                 row.findViewById<TextView>(R.id.workerTimer)?.let { tv ->
                     tv.text = formatTimerText(if (tag != null && tag.done) tag.elapsedSeconds else liveSec)
                 }
@@ -575,7 +577,14 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         val mutedColor = requireContext().getColor(R.color.cinema_text_disabled)
         val errorColor = requireContext().getColor(R.color.cinema_error)
 
+        // Задача K: rows removed with «■ Снять» never come back (the backend
+        // keeps the cancelled task ~30 s); stopped-row guard bookkeeping.
+        lastRenderedRows = rows
+        val now = System.currentTimeMillis()
+        val stoppedKeys = mutableSetOf<String>()
+        val dismissed = viewModel.dismissedTaskIds
         for (taskRow in rows) {
+            if (taskRow.taskId != null && taskRow.taskId in dismissed) continue
             val container = when (taskRow.type) {
                 "vbook" -> vbookContainer
                 "audio" -> audioContainer
@@ -597,47 +606,45 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
                 rowBinding.workerTimer.visibility = View.GONE
                 rowBinding.workerProgressBar.visibility = View.GONE
                 rowBinding.workerStopButton.visibility = View.GONE
-            } else if (taskRow.state == TaskRowState.FAILED) {
-                // GPU retry policy — terminally failed command: classified
-                // reason, no spinner, no timer, no auto-retry; «Повторить»
-                // sends a NEW /regenerate (same type + scope, never automatic).
-                rowBinding.workerName.text = failureReason(taskRow) + " — " + scopedTaskLabel(taskRow)
+            } else if (TaskStatusHelpers.isStopped(taskRow.state)) {
+                // Задача K (2026-11-05) — a stopped command (failed / blocked /
+                // interrupted) looks like an ordinary progress row: name,
+                // ready/total, percent, the bar at its current fill; a short
+                // status in place of the timer and two small square icon
+                // buttons ▶ «Продолжить» / ■ «Снять». Nothing restarts by itself.
+                val status = when (taskRow.state) {
+                    TaskRowState.FAILED -> getString(R.string.task_status_failed, failureReason(taskRow))
+                    TaskRowState.BLOCKED -> getString(R.string.task_status_blocked)
+                    else -> getString(R.string.task_status_interrupted)
+                }
+                val pct = taskRow.percent.coerceIn(0, 100)
+                rowBinding.workerName.text = scopedTaskLabel(taskRow)
                 rowBinding.workerName.setTextColor(textColor)
-                rowBinding.workerCount.visibility = View.GONE
-                rowBinding.workerPercent.visibility = View.GONE
-                rowBinding.workerTimer.visibility = View.GONE
-                rowBinding.workerProgressBar.visibility = View.GONE
-                rowBinding.workerStopButton.visibility = View.GONE
-                rowBinding.workerRetryButton.text = getString(R.string.task_retry)
-                rowBinding.workerRetryButton.visibility = View.VISIBLE
-                rowBinding.workerRetryButton.setOnClickListener { onRetryRow(taskRow) }
+                rowBinding.workerCount.text = taskRow.countText ?: "${taskRow.ready}/${taskRow.total}"
+                rowBinding.workerCount.setTextColor(mutedColor)
+                rowBinding.workerCount.visibility = View.VISIBLE
+                rowBinding.workerPercent.text = "$pct%"
+                rowBinding.workerPercent.setTextColor(textColor)
+                rowBinding.workerPercent.visibility = View.VISIBLE
+                rowBinding.workerTimer.text = status
+                rowBinding.workerTimer.setTextColor(if (taskRow.state == TaskRowState.FAILED) errorColor else textColor)
+                rowBinding.workerTimer.ellipsize = android.text.TextUtils.TruncateAt.END
+                rowBinding.workerTimer.maxWidth = (resources.displayMetrics.widthPixels * 0.45f).toInt()
+                rowBinding.workerTimer.visibility = View.VISIBLE
+                rowBinding.workerProgressBar.visibility = View.VISIBLE
+                rowBinding.workerProgressBar.isIndeterminate = false
+                rowBinding.workerProgressBar.setProgressCompat(pct, false)
+                rowBinding.workerProgressBar.setIndicatorColor(mutedColor)
+                bindStoppedRowButtons(rowBinding, taskRow, now)
+                // Tag: refreshTimerDisplay skips stopped rows (status, not a timer)
+                row.tag = taskRow
+                stoppedKeys += GeneratorCommands.stoppedRowKey(taskRow.taskId, taskRow.type, taskRow.chapterId, taskRow.sceneId, taskRow.state)
                 // §ТЗ фронтам п.4: the scene the command died on, from the
                 // already loaded book (not repeated for a single-scene scope).
-                val caption = if (taskRow.scope != "current_scene")
+                val caption = if (taskRow.state == TaskRowState.FAILED && taskRow.scope != "current_scene")
                     TaskStatusHelpers.failedSceneCaption(bookData?.chapters, taskRow.failedScene) else null
                 rowBinding.workerCaption.text = caption ?: ""
                 rowBinding.workerCaption.visibility = if (caption != null) View.VISIBLE else View.GONE
-            } else if (TaskStatusHelpers.isStopped(taskRow.state)) {
-                // Stage 155: blocked (no live worker) / interrupted (backend
-                // restart) — no spinner, no timer; only a new command restarts it.
-                val blocked = taskRow.state == TaskRowState.BLOCKED
-                val status = if (blocked) {
-                    getString(R.string.task_blocked_no_worker, getString(when (taskRow.blockedType) {
-                        "audio" -> R.string.worker_type_audio
-                        "video" -> R.string.worker_type_video
-                        else -> R.string.worker_type_image
-                    }))
-                } else getString(R.string.task_interrupted)
-                rowBinding.workerName.text = status + " — " + scopedTaskLabel(taskRow)
-                rowBinding.workerName.setTextColor(textColor)
-                rowBinding.workerCount.visibility = View.GONE
-                rowBinding.workerPercent.visibility = View.GONE
-                rowBinding.workerTimer.visibility = View.GONE
-                rowBinding.workerProgressBar.visibility = View.GONE
-                rowBinding.workerStopButton.visibility = View.GONE
-                rowBinding.workerRetryButton.text = getString(if (blocked) R.string.task_retry else R.string.task_continue)
-                rowBinding.workerRetryButton.visibility = View.VISIBLE
-                rowBinding.workerRetryButton.setOnClickListener { onRetryRow(taskRow) }
             } else if (taskRow.indeterminate) {
                 rowBinding.workerName.text = scopedTaskLabel(taskRow)
                 rowBinding.workerName.setTextColor(textColor)
@@ -695,6 +702,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
 
             container.addView(row)
         }
+        stoppedRowGuard.retain(stoppedKeys)
 
         // Parallel AI Analysis per-task panel (web parity f661a922) — renders
         // below the regular rows; nothing attached in sequential mode.
@@ -1102,10 +1110,53 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
     }
 
     /** Stage 155 — «Повторить» / «Продолжить»: a NEW explicit command (same type + scope). */
-    private fun onRetryRow(taskRow: TaskRow) {
-        val type = TaskStatusHelpers.commandWorkerType(taskRow.type) ?: return
-        viewModel.retryStoppedTask(taskRow, GeneratorCommands.userAction(GeneratorCommands.SOURCE_RETRY_ROW)) { result ->
+    private fun onRetryRow(taskRow: TaskRow, onDone: () -> Unit = {}) {
+        val type = TaskStatusHelpers.commandWorkerType(taskRow.type) ?: return onDone()
+        val sent = viewModel.retryStoppedTask(taskRow, GeneratorCommands.userAction(GeneratorCommands.SOURCE_RETRY_ROW)) { result ->
+            onDone()
             showGenerationResult(result, layerLabelResFor(type))
+        }
+        if (!sent) onDone()
+    }
+
+    /** Задача K — double-tap guard state of the stopped rows (re-inflated every poll). */
+    private val stoppedRowGuard = GeneratorCommands.StoppedRowGuard()
+    private var lastRenderedRows: List<TaskRow> = emptyList()
+
+    /** ▶ «Продолжить» / ■ «Снять» of a stopped row (same size/style as the active ■). */
+    private fun bindStoppedRowButtons(rowBinding: ItemWorkerProgressBinding, taskRow: TaskRow, now: Long) {
+        val key = GeneratorCommands.stoppedRowKey(taskRow.taskId, taskRow.type, taskRow.chapterId, taskRow.sceneId, taskRow.state)
+        stoppedRowGuard.onRendered(key, now)
+        rowBinding.workerContinueButton.visibility = View.VISIBLE
+        rowBinding.workerContinueButton.contentDescription = getString(R.string.task_continue)
+        rowBinding.workerContinueButton.setOnClickListener { onContinueStoppedRow(key, taskRow) }
+        rowBinding.workerStopButton.visibility = View.VISIBLE
+        rowBinding.workerStopButton.contentDescription = getString(R.string.task_dismiss)
+        rowBinding.workerStopButton.setOnClickListener { onDismissStoppedRow(key, taskRow) }
+    }
+
+    /** ▶ — exactly one /regenerate through onRetryRow (guarded: 400 ms / in flight). */
+    private fun onContinueStoppedRow(key: String, taskRow: TaskRow) {
+        if (!stoppedRowGuard.accept(key, System.currentTimeMillis())) {
+            Log.i(TAG, "stopped row: ▶ ignored (double tap / in flight) task=${taskRow.taskId}")
+            return
+        }
+        stoppedRowGuard.begin(key)
+        onRetryRow(taskRow) { stoppedRowGuard.end(key) }
+    }
+
+    /** ■ — the existing task cancel (cancel-worker by task_id); on success the row disappears. */
+    private fun onDismissStoppedRow(key: String, taskRow: TaskRow) {
+        if (!stoppedRowGuard.accept(key, System.currentTimeMillis())) {
+            Log.i(TAG, "stopped row: ■ ignored (double tap / in flight) task=${taskRow.taskId}")
+            return
+        }
+        stoppedRowGuard.begin(key)
+        viewModel.dismissStoppedTask(taskRow) { ok ->
+            stoppedRowGuard.end(key)
+            if (binding == null) return@dismissStoppedTask
+            if (ok) renderTaskRowsToSections(lastRenderedRows)
+            else Toast.makeText(requireContext(), getString(R.string.task_dismiss_failed), Toast.LENGTH_SHORT).show()
         }
     }
 
