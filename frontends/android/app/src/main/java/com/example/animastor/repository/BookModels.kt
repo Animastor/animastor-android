@@ -604,7 +604,9 @@ data class CancelWorkerRequest(
 data class CancelWorkerResponse(
     val ok: Boolean = false,
     val book_id: String? = null,
-    val cancelled: List<String>? = null
+    val cancelled: List<String>? = null,
+    /** Task ids the backend cancelled (task_id cancel; задача K). */
+    val task_ids: List<String>? = null
 )
 
 data class GenerationStateResponse(

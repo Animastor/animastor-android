@@ -160,4 +160,93 @@ class GeneratorButtonsTest {
         assertTrue("mayStart guard precedes the request", guard in 0 until call)
         assertEquals(1, Regex("_repository\\.regenerateBookScoped\\(").findAll(vm).count())
     }
+
+    // ── Задача K (2026-11-05): stopped row = progress row + ▶ / ■ icons ──
+
+    private fun resSource(rel: String): String {
+        val f = listOf(File("src/main/res/$rel"), File("app/src/main/res/$rel")).firstOrNull { it.isFile }
+            ?: error("resource not found: $rel")
+        return f.readText()
+    }
+
+    /** The stopped-row branch of renderTaskRowsToSections. */
+    private fun stoppedBranch(): String {
+        val src = mainSource("ui/GenerateFragment.kt")
+        val start = src.indexOf("} else if (TaskStatusHelpers.isStopped(taskRow.state)) {")
+        assertTrue("one stopped branch for failed / blocked / interrupted", start >= 0)
+        val end = src.indexOf("} else if (taskRow.indeterminate) {", start)
+        assertTrue(end > start)
+        return src.substring(start, end)
+    }
+
+    @Test fun stoppedRowRendersProgressAndAShortStatus() {
+        val b = stoppedBranch()
+        for (v in listOf("workerCount", "workerPercent", "workerTimer", "workerProgressBar")) {
+            assertTrue("$v visible", b.contains("rowBinding.$v.visibility = View.VISIBLE"))
+        }
+        assertTrue(b.contains("setProgressCompat(pct, false)"))
+        assertTrue(b.contains("isIndeterminate = false"))
+        assertTrue(b.contains("rowBinding.workerName.text = scopedTaskLabel(taskRow)"))
+        assertTrue(b.contains("rowBinding.workerTimer.text = status"))
+        for (r in listOf("task_status_failed", "task_status_blocked", "task_status_interrupted")) {
+            assertTrue(r, b.contains("R.string.$r"))
+        }
+        assertTrue(b.contains("bindStoppedRowButtons(rowBinding, taskRow, now)"))
+        // the timer tick never overwrites the status
+        val tick = funBody(mainSource("ui/GenerateFragment.kt"), "refreshTimerDisplay")
+        assertTrue(tick.contains("TaskStatusHelpers.isStopped(tag.state)) continue"))
+    }
+
+    @Test fun stoppedRowHasTwoIconButtonsWithDescriptionsAndNoBigButton() {
+        val layout = resSource("layout/item_worker_progress.xml")
+        assertFalse("big «Продолжить» removed", layout.contains("workerRetryButton"))
+        assertFalse(mainSource("ui/GenerateFragment.kt").contains("workerRetryButton"))
+        val cont = layout.substring(layout.indexOf("@+id/workerContinueButton"))
+        val stop = layout.substring(layout.indexOf("@+id/workerStopButton"))
+        for (attr in listOf("android:layout_width=\"32dp\"", "android:layout_height=\"32dp\"", "android:padding=\"6dp\"")) {
+            assertTrue("▶ $attr", cont.substringBefore("/>").contains(attr))
+            assertTrue("■ $attr", stop.substringBefore("/>").contains(attr))
+        }
+        assertTrue(cont.substringBefore("/>").contains("@drawable/ic_play"))
+        val bind = funBody(mainSource("ui/GenerateFragment.kt"), "bindStoppedRowButtons")
+        assertTrue(bind.contains("workerContinueButton.contentDescription = getString(R.string.task_continue)"))
+        assertTrue(bind.contains("workerStopButton.contentDescription = getString(R.string.task_dismiss)"))
+        for (lang in listOf("values", "values-ru")) {
+            val strings = resSource("$lang/strings.xml")
+            for (n in listOf("task_status_interrupted", "task_status_blocked", "task_status_failed", "task_dismiss", "task_dismiss_failed")) {
+                assertTrue("$lang/$n", strings.contains("<string name=\"$n\">"))
+            }
+        }
+    }
+
+    @Test fun stoppedRowPlaySendsOneGuardedRetry() {
+        val src = mainSource("ui/GenerateFragment.kt")
+        val play = funBody(src, "onContinueStoppedRow")
+        assertTrue(play.indexOf("stoppedRowGuard.accept(") in 0 until play.indexOf("onRetryRow("))
+        assertEquals(1, Regex("onRetryRow\\(").findAll(play).count())
+        assertFalse(play.contains("cancelTask(") || play.contains("dismissStoppedTask("))
+    }
+
+    @Test fun stoppedRowStopCancelsThatTaskAndNeverRegenerates() {
+        val src = mainSource("ui/GenerateFragment.kt")
+        val stop = funBody(src, "onDismissStoppedRow")
+        assertTrue(stop.indexOf("stoppedRowGuard.accept(") in 0 until stop.indexOf("viewModel.dismissStoppedTask("))
+        assertEquals(1, Regex("viewModel\\.dismissStoppedTask\\(").findAll(stop).count())
+        for (bad in listOf("startGeneration(", "retryStoppedTask(", "onRetryRow(", "regenerate")) {
+            assertFalse(bad, stop.contains(bad))
+        }
+        // success → the row disappears (dismissed ids are skipped on render)
+        assertTrue(stop.contains("if (ok) renderTaskRowsToSections(lastRenderedRows)"))
+        assertTrue(src.contains("if (taskRow.taskId != null && taskRow.taskId in dismissed) continue"))
+        // the ViewModel: the existing cancel (cancel-worker by task_id), no /regenerate
+        val vm = mainSource("ui/GenerateViewModel.kt")
+        val start = vm.indexOf("fun dismissStoppedTask(")
+        val body = vm.substring(start, vm.indexOf("\n    }", start))
+        assertTrue(body.contains("cancelTask(row.type, taskId)"))
+        assertTrue(body.contains("_dismissedTaskIds.add(taskId)"))
+        assertFalse(body.contains("startGeneration(") || body.contains("regenerate"))
+        val cancel = vm.substring(vm.indexOf("fun cancelTask("), vm.indexOf("fun dismissStoppedTask("))
+        assertTrue(cancel.contains("_repository.cancelWorker(bookId, type, taskId)"))
+        assertTrue(cancel.contains("GeneratorCommands.dismissSucceeded(taskId, res.task_ids)"))
+    }
 }

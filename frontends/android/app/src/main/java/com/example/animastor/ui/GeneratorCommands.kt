@@ -23,6 +23,8 @@ import java.security.SecureRandom
  */
 object GeneratorCommands {
     const val SCOPE_DIALOG_ARM_MS = 400L
+    /** Задача K — ▶ / ■ of a stopped row: the same 400 ms as the dialog. */
+    const val STOPPED_ROW_ARM_MS = 400L
     const val SOURCE_SCOPE_DIALOG = "generator.scope_dialog"
     const val SOURCE_RETRY_ROW = "generator.retry_row"
 
@@ -77,4 +79,50 @@ object GeneratorCommands {
         scene_id = sceneId,
         client_action = clientAction(action),
     )
+
+    /** Задача K — «■ Снять» of a stopped row succeeded only when the backend
+     *  listed that task in `task_ids` (an older backend answers `[]` for a
+     *  non-active task: nothing was cancelled, the row stays). */
+    fun dismissSucceeded(taskId: String?, taskIds: List<String>?): Boolean =
+        taskId != null && taskIds?.contains(taskId) == true
+
+    /**
+     * Задача K (2026-11-05) — double-tap guard of the ▶ «Продолжить» /
+     * ■ «Снять» icons of a stopped row (web parity: StoppedRow in
+     * GeneratePage.tsx). Rows are re-inflated on every poll, so the state
+     * lives here, keyed by row (task id + state):
+     *  - taps during the first [armMs] after the stopped row first appeared
+     *    are ignored (the tap on the active ■, a double tap);
+     *  - after an accepted tap the row ignores taps for [armMs];
+     *  - while the row's request is in flight every tap is ignored.
+     */
+    class StoppedRowGuard(private val armMs: Long = STOPPED_ROW_ARM_MS) {
+        private val firstSeen = HashMap<String, Long>()
+        private val nextAllowed = HashMap<String, Long>()
+        private val inFlight = HashSet<String>()
+
+        /** The row is on screen now (call on every render). */
+        fun onRendered(key: String, now: Long) { firstSeen.putIfAbsent(key, now) }
+
+        /** Forget rows no longer on screen. */
+        fun retain(keys: Set<String>) {
+            firstSeen.keys.retainAll(keys)
+            nextAllowed.keys.retainAll(keys)
+        }
+
+        fun accept(key: String, now: Long): Boolean {
+            if (key in inFlight) return false
+            val seen = firstSeen.getOrPut(key) { now }
+            if (now - seen < armMs) return false
+            if (now < (nextAllowed[key] ?: 0L)) return false
+            nextAllowed[key] = now + armMs
+            return true
+        }
+
+        fun begin(key: String) { inFlight.add(key) }
+        fun end(key: String) { inFlight.remove(key) }
+    }
+
+    fun stoppedRowKey(taskId: String?, type: String, chapterId: String?, sceneId: String?, state: TaskRowState): String =
+        "${taskId ?: type}|${chapterId ?: ""}|${sceneId ?: ""}|$state"
 }

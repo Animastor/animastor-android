@@ -185,6 +185,12 @@
     <string name="task_cancelled">Cancelled</string>
     <string name="task_retry">Retry</string>
     <string name="task_continue">Continue</string>
+    <!-- Задача K (2026-11-05) — stopped row: short status + ■ «Remove» -->
+    <string name="task_status_interrupted">interrupted</string>
+    <string name="task_status_blocked">waiting for a worker</string>
+    <string name="task_status_failed">error: %1$s</string>
+    <string name="task_dismiss">Remove</string>
+    <string name="task_dismiss_failed">Could not remove the task</string>
     <!-- GPU retry policy (2026-11-02) — failed / retrying rows -->
     <string name="task_failed_comfy_nodes">ComfyUI: required nodes missing — %1$s</string>
     <string name="task_failed_comfy_model">ComfyUI: model not found — %1$s</string>
