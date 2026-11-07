@@ -30,8 +30,11 @@ import com.example.animastor.util.MediaDecoder
 import com.example.animastor.util.SimpleDiskCache
 import java.io.File
 import java.util.Locale
+import com.example.animastor.network.PollRequests
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -1659,6 +1662,21 @@ class GenerateViewModel(
      */
     private val taskFrozenElapsed = mutableMapOf<String, Long>()
 
+    // ── О1: progress-panel re-poll requests (web: state/panelRefresh.ts) ──
+    // CONFLATED: several requests while a poll is in flight collapse into one
+    // immediate re-poll, none is lost.
+    private val panelRefreshRequests = Channel<Unit>(Channel.CONFLATED)
+
+    /** Ask the Generator's progress-panel loop to poll now (SSE / screen resumed). */
+    fun requestPanelRefresh() {
+        panelRefreshRequests.trySend(Unit)
+    }
+
+    /** Interruptible sleep between progress-panel polls: [ms], or less on [requestPanelRefresh]. */
+    suspend fun awaitNextPanelPoll(ms: Long) {
+        withTimeoutOrNull(ms) { panelRefreshRequests.receive() }
+    }
+
     /**
      * SSE push client for real-time GPU + VBook progress.
      * Started/stopped by [startProgressStream] / [stopProgressStream].
@@ -1666,6 +1684,11 @@ class GenerateViewModel(
     private val progressStream: ProgressStream by lazy {
         ProgressStream(viewModelScope).apply {
             onProgressEvent = { event ->
+                // О1 (web parity, state/panelRefresh.ts): generation_complete or a
+                // v2 `progress` (command_id) → the Generator re-polls the panel now.
+                if (PollRequests.sseEventRequestsPanelRefresh(event.type, event.command_id)) {
+                    requestPanelRefresh()
+                }
                 // Parallel AI Analysis (Milestone #2, web parity): route the
                 // additive 'analysis' events + the analysis_parallel vbook
                 // heartbeat into the per-task progress state BEFORE the

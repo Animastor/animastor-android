@@ -34,6 +34,8 @@ import okhttp3.sse.EventSources
 data class ProgressEvent(
     val type: String = "",
     val layer: String = "",
+    /** v2 orchestration command id (type == "progress" from orchestration v2) — О1 panel re-poll. */
+    val command_id: String? = null,
     val chapterId: String? = null,
     val sceneId: String? = null,
     val ready: Int? = null,

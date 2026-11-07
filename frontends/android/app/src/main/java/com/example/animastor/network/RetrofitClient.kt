@@ -45,6 +45,9 @@ object RetrofitClient {
             .callTimeout(15, TimeUnit.MINUTES)
             .retryOnConnectionFailure(true)
             .cookieJar(cookieJar)
+            // О1: no okhttp3.Cache here (every request goes to the network);
+            // polling paths additionally carry Cache-Control: no-store.
+            .addInterceptor(NoStoreInterceptor())
             .addInterceptor(logging)
             .build()
     }

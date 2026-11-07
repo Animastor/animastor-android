@@ -31,6 +31,8 @@ import com.example.animastor.repository.ResourceInvalidations
 import com.google.android.material.chip.Chip
 import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import com.example.animastor.network.PollRequests
 import kotlinx.coroutines.launch
 
 private const val TAG = "GenerateFragment"
@@ -226,7 +228,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
 
             while (true) {
                 try {
-                    val counts = RetrofitClient.api.getWorkerCounts()
+                    val counts = withTimeout(PollRequests.POLL_REQUEST_TIMEOUT_MS) {
+                        RetrofitClient.api.getWorkerCounts()
+                    }
                     val uiState = viewModel.uiState.value
                     val phase = uiState.phase
                     val mode = uiState.mode
@@ -326,7 +330,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         lifecycleScope.launch {
             while (true) {
                 refreshProgressUi()
-                delay(1_500)
+                // О1: interruptible — SSE generation_complete / v2 progress and
+                // onResume re-poll at once (GenerateViewModel.requestPanelRefresh).
+                viewModel.awaitNextPanelPoll(1_500)
             }
         }
 
@@ -421,8 +427,12 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         val vbookProg = uiState.vbookProgress
         val hasVBook = vbookProg != null && vbookProg.stage != VBookStage.IDLE
 
+        // О1: one hung request must not stop the 1.5 s loop (the OkHttp read
+        // timeout is 15 min for the long bootstrap calls) — 10 s per poll.
         val panel = runCatching {
-            viewModel.repository.getProgressPanel(bookId = viewModel.bookId)
+            withTimeout(PollRequests.POLL_REQUEST_TIMEOUT_MS) {
+                viewModel.repository.getProgressPanel(bookId = viewModel.bookId)
+            }
         }.getOrNull() ?: return
         val vbookToShow = if (hasVBook) {
             val updated = viewModel.checkVBookAgentStatus()
@@ -1465,6 +1475,13 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
     }
 
 
+
+    override fun onResume() {
+        super.onResume()
+        // О1 (web: visibilitychange → visible / pageshow): back on screen →
+        // re-poll the progress panel immediately, not on the next tick.
+        viewModel.requestPanelRefresh()
+    }
 
     override fun onDestroyView() {
         pulseAnimators.values.forEach { it.cancel() }
