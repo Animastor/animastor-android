@@ -17,16 +17,21 @@ data class BookData(
     val chapters: List<Chapter>? = null,
     val locations: Map<String, Location>? = null,
     val voices: Map<String, VoiceEntry>? = null,
-    // Per-character behavior (behavior.json) — keyed by character_id, same
-    // pattern as voices. Pass 1 edits only `instruction`; unknown extra keys
-    // are preserved server-side (schema-tolerant storage).
-    val behaviors: Map<String, BehaviorEntry>? = null,
+    // Per-character behavior — the API's flat character map (projection of
+    // behavior.json schema v2), kept raw so service keys can never break the
+    // book parse; read it ONLY through [behaviorEntries].
+    val behaviors: JsonElement? = null,
+    // Read-only behaviour rules (behavior.json v2 `rules`); no UI in phase 0.
+    val behavior_rules: JsonElement? = null,
     // Flat scene list in book order, computed server-side (thin-client contract).
     // Clients build playback queues and navigation from this list instead of
     // re-implementing chapter→scene traversal. Cover is the first entry with
     // type == "cover". Null/empty on legacy servers → fall back to chapters.
     val scene_list: List<SceneListEntry>? = null
-)
+) {
+    /** Character behavior entries (service keys filtered, see [BehaviorEntries]). */
+    fun behaviorEntries(): Map<String, BehaviorEntry> = BehaviorEntries.characterEntries(behaviors)
+}
 
 /**
  * Flat scene reference in book order, provided by the backend (GET /book).
@@ -177,8 +182,9 @@ data class VoiceEntry(
 )
 
 /**
- * Per-character behavior (behavior.json) — keyed by character_id (same
- * pattern as voices). Schema v2.1 — the Character Behavior contract:
+ * Per-character behavior entry — keyed by character_id (same pattern as
+ * voices); the server stores it under behavior.json v2 `characters`.
+ * Character Behavior contract:
  *   baseline    — how the character behaves normally
  *   quirks      — recurring habits, one entry each
  *   reactions   — trigger → reaction patterns ([BehaviorReaction])
