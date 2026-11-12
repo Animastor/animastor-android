@@ -123,7 +123,9 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
             R.string.entity_delete_voice,
             R.string.entity_delete_voice_confirm,
             listOf(
-                EntityField("instruction", R.string.field_instruction, multiline = true),
+                // VOICE_REFERENCES.md: timbre + manner (no instruction)
+                EntityField("timbre", R.string.field_timbre, multiline = true),
+                EntityField("manner", R.string.field_manner, multiline = true),
             )
         )
         EntityKind.BEHAVIOR -> EntityDef(
@@ -773,7 +775,8 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 if (env.isNotEmpty()) body["environment"] = env
             }
             EntityKind.VOICE -> {
-                values["instruction"]?.takeIf { it.isNotBlank() }?.let { body["instruction"] = it }
+                values["timbre"]?.takeIf { it.isNotBlank() }?.let { body["timbre"] = it }
+                values["manner"]?.takeIf { it.isNotBlank() }?.let { body["manner"] = it }
             }
             EntityKind.BEHAVIOR -> {
                 // Not reached via showAddEntityDialog (behavior add uses
@@ -2115,10 +2118,17 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                     showDeleteConfirmDialog(EntityKind.VOICE, voiceId)
                 })
 
-                val instruction = entry.instruction ?: ""
-                val voiceKey = "voice.${voiceId}.instruction"
-                if (!fieldValues.containsKey(voiceKey)) fieldValues[voiceKey] = instruction
-                inner.addView(inputCard(ctx, getString(R.string.field_instruction), fieldValues[voiceKey] ?: instruction, instruction.length > 80, storeKey = voiceKey))
+                // VOICE_REFERENCES.md: timbre + manner; the voice reference block is
+                // web-only for now (GAP in animastor-docs ANDROID_WEB_PARITY.md)
+                for ((field, label) in listOf("timbre" to R.string.field_timbre, "manner" to R.string.field_manner)) {
+                    val value = (if (field == "timbre") entry.timbre else entry.manner) ?: ""
+                    val key = "voice.${voiceId}.$field"
+                    if (!fieldValues.containsKey(key)) fieldValues[key] = value
+                    inner.addView(inputCard(ctx, getString(label), fieldValues[key] ?: value, value.length > 80, storeKey = key))
+                    if (field == "timbre" && entry.timbre_source == "cleaned") {
+                        inner.addView(TextView(ctx).apply { text = getString(R.string.voice_ref_cleaned_hint); textSize = 12f })
+                    }
+                }
 
                 card.addView(inner)
                 ll.addView(card)
@@ -3037,9 +3047,12 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                             // Skip entities deleted since the editor rendered
                             // (stale fieldValues must not PATCH a 404).
                             if (!voices.containsKey(voiceId)) return@forEach
-                            val orig = voices[voiceId]?.instruction ?: ""
+                            val entry = voices[voiceId]
                             val changed = mutableMapOf<String, String>()
-                            fields.forEach { (k, v) -> if (v != orig) changed[k] = v }
+                            fields.forEach { (k, v) ->
+                                val orig = when (k) { "timbre" -> entry?.timbre ?: ""; "manner" -> entry?.manner ?: ""; else -> null }
+                                if (orig != null && v != orig) changed[k] = v
+                            }
                             if (changed.isEmpty()) return@forEach
                             anyChanged = true
                             viewModel.repository.patchVoice(bookId, voiceId, changed)

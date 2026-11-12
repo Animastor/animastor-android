@@ -172,8 +172,26 @@ fun CharPassport.videoTokensAsText(): String = when (val t = video_tokens) {
     else -> ""
 }
 
+/**
+ * Character voice (animastor-docs architecture/VOICE_REFERENCES.md):
+ * constant timbre + manner; `reference` links the locked voice reference
+ * (the audio lives in the content folder build_<id>/voices/, never in the book).
+ */
 data class VoiceEntry(
-    val instruction: String? = null
+    val timbre: String? = null,
+    val manner: String? = null,
+    val timbre_source: String? = null,
+    val reference: VoiceReferenceLink? = null
+)
+
+data class VoiceReferenceLink(
+    val file: String? = null,
+    val ref_text: String? = null,
+    val source: String? = null,
+    val sha256: String? = null,
+    val verification: String? = null,
+    val locked: Boolean? = null,
+    val candidate_id: String? = null
 )
 
 /**
