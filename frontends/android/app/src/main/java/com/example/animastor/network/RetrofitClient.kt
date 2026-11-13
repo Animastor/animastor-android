@@ -48,6 +48,8 @@ object RetrofitClient {
             // О1: no okhttp3.Cache here (every request goes to the network);
             // polling paths additionally carry Cache-Control: no-store.
             .addInterceptor(NoStoreInterceptor())
+            // 401 outside /auth → one login prompt (web parity: client.ts).
+            .addInterceptor(LoginRequiredInterceptor { com.example.animastor.repository.AuthStore.requestLogin() })
             .addInterceptor(logging)
             .build()
     }
