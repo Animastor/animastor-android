@@ -15,7 +15,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.animastor.R
 import com.example.animastor.databinding.ActivityMainBinding
 import com.example.animastor.repository.AuthStore
@@ -155,6 +157,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch { AuthStore.refresh() }
+        // Sign-in-only action refused (401): open the login dialog once
+        // (web parity: UserMenu loginPrompt effect).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                AuthStore.loginPrompt.collect { n ->
+                    if (n > 0 && AuthStore.claimLoginPrompt()) {
+                        val before = AuthStore.state.value
+                        AuthDialog.show(this@MainActivity) {
+                            lifecycleScope.launch { handleAuthTransition(before) }
+                        }
+                    }
+                }
+            }
+        }
 
         setupPlaybackCoordination()
 

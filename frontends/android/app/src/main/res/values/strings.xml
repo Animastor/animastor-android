@@ -591,6 +591,7 @@
     <!-- Account & authentication (web parity: i18n auth_* keys) -->
     <string name="auth_menu">Account</string>
     <string name="auth_login">Sign in</string>
+    <string name="auth_login_required_import">Sign in to import or download books.</string>
     <string name="auth_logout">Sign out</string>
     <string name="auth_register">Create account</string>
     <string name="auth_username">Username</string>

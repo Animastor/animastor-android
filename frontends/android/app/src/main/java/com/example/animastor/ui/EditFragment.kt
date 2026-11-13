@@ -750,7 +750,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         EntityKind.CHARACTER -> (bookData?.characters ?: emptyList()).mapNotNull { it.id }.toSet()
         EntityKind.LOCATION -> (bookData?.locations ?: emptyMap()).keys.toSet()
         EntityKind.VOICE -> (bookData?.voices ?: emptyMap()).keys.toSet()
-        EntityKind.BEHAVIOR -> (bookData?.behaviors ?: emptyMap()).keys.toSet()
+        EntityKind.BEHAVIOR -> (bookData?.behaviorEntries() ?: emptyMap()).keys.toSet()
     }
 
     /** Flat form values → the backend create payload (mirror of the web builder). */
@@ -888,7 +888,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     private fun showAddBehaviorDialog() {
         val ctx = requireContext()
         val bookId = viewModel.bookId.takeIf { it.isNotBlank() } ?: return
-        val behaviors = bookData?.behaviors ?: emptyMap()
+        val behaviors = bookData?.behaviorEntries() ?: emptyMap()
         val options = (bookData?.characters ?: emptyList())
             .filter { !it.id.isNullOrBlank() && it.id !in behaviors }
             .map { ch ->
@@ -2021,7 +2021,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     private fun buildBehaviorsFields(parent: ViewGroup) {
         val ctx = parent.context
         val bd = bookData
-        val behaviors = bd?.behaviors ?: emptyMap()
+        val behaviors = bd?.behaviorEntries() ?: emptyMap()
         val characters = bd?.characters ?: emptyList()
 
         val ll = LinearLayout(ctx).apply {
@@ -3101,7 +3101,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                             return@launch
                         }
 
-                        val behaviors = bd.behaviors ?: emptyMap()
+                        val behaviors = bd.behaviorEntries()
                         var anyChanged = false
                         byChar.forEach { (charId, fields) ->
                             // Skip entities deleted since the editor rendered
