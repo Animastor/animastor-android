@@ -688,6 +688,7 @@ class Repository(
                 e.message()
             }
             Log.w("Repo", "importBook FAILED (${e.code()}): $backendMsg")
+            if (e.code() == 401) throw LoginRequiredException(backendMsg ?: "Sign in required")
             throw IOException(backendMsg ?: "Import failed (${e.code()})")
         }
     }
@@ -841,3 +842,6 @@ class Repository(
  */
 fun resolveLanguage(languageTag: String): String =
     if (languageTag.isNotBlank() && languageTag.lowercase().startsWith("ru")) "ru" else "en"
+
+/** The server requires a signed-in user for this action (import / export). */
+class LoginRequiredException(message: String) : IOException(message)

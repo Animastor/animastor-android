@@ -1106,7 +1106,12 @@ class GenerateViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "importBookFromFile failed: ${e.message}", e)
-                val msg = if (e is java.io.IOException && e.message != null) e.message!! else "Import failed: ${e.message}"
+                val msg = when {
+                    e is com.example.animastor.repository.LoginRequiredException ->
+                        getApplication<android.app.Application>().getString(com.example.animastor.R.string.auth_login_required_import)
+                    e is java.io.IOException && e.message != null -> e.message!!
+                    else -> "Import failed: ${e.message}"
+                }
                 _uiState.update { it.copy(phase = PlayerPhase.IDLE, errorMessage = msg) }
                 stopTimer()  // 🕐 ошибка импорта — останавливаем таймер
             }

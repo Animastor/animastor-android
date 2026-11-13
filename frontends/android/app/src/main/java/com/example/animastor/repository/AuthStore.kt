@@ -30,6 +30,25 @@ object AuthStore {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    // Sign-in prompt (web parity: authStore.ts loginPrompt/claimLoginPrompt):
+    // bumped when the server answers 401 to a caller that is not signed in;
+    // MainActivity opens the login dialog once per bump.
+    private val _loginPrompt = MutableStateFlow(0)
+    val loginPrompt: StateFlow<Int> = _loginPrompt.asStateFlow()
+    private var loginPromptHandled = 0
+
+    fun requestLogin() {
+        if (_state.value.user != null) return
+        synchronized(this) { _loginPrompt.value = _loginPrompt.value + 1 }
+    }
+
+    /** Claims the current prompt; true for exactly one caller per bump. */
+    fun claimLoginPrompt(): Boolean = synchronized(this) {
+        if (_loginPrompt.value <= loginPromptHandled) return false
+        loginPromptHandled = _loginPrompt.value
+        true
+    }
+
     /** Refresh identity from the server. Safe on network failure. */
     suspend fun refresh(): AuthState {
         val me = try {
