@@ -20,6 +20,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.animastor.R
 import com.example.animastor.databinding.FragmentEditBinding
 import com.example.animastor.repository.*
+import com.example.animastor.ui.heroes.HeroCardController
+import com.example.animastor.ui.heroes.HeroCardDialog
+import com.example.animastor.ui.heroes.HeroCardLogic
+import com.example.animastor.ui.heroes.HeroesPanel
+import com.example.animastor.ui.heroes.heroStr
+import com.example.animastor.ui.heroes.uiText
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.textfield.TextInputEditText
@@ -70,6 +76,19 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     /** Full-size image zoom dialog (web parity) — dismissed on fragment teardown. */
     private var zoomDialog: android.app.Dialog? = null
 
+    // ── VBook 4 heroes (HERO_CARD.md) ──
+    /** The opened hero card (one at a time), re-fed after every GET /book. */
+    private var heroCard: HeroCardDialog? = null
+    /** GET /book answered 409 unsupported_vbook_version — the editor shows the final state only. */
+    private var unsupportedBook: UnsupportedVbook? = null
+    /** File picker of the hero card (voice sample / image reference). */
+    private var pendingPick: ((android.net.Uri) -> Unit)? = null
+    private val pickLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        val cb = pendingPick
+        pendingPick = null
+        if (uri != null && cb != null) cb(uri)
+    }
+
     // ── Manual entity add/delete (characters / voices / locations tables) ──
     // One schema-driven pattern (EntityKind + EntityDef) so Add/Delete for the
     // entity types — and later Unit/Scene — never fork into near-identical
@@ -78,7 +97,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     // BEHAVIOR is the exception on the add path: behavior.json is keyed by an
     // EXISTING character_id, so its add dialog (showAddBehaviorDialog) picks a
     // character instead of a free-form id; delete/reuse flows are shared.
-    private enum class EntityKind { CHARACTER, LOCATION, VOICE, BEHAVIOR }
+    private enum class EntityKind { LOCATION }
 
     private class EntityField(val key: String, val labelRes: Int, val multiline: Boolean = false)
 
@@ -91,17 +110,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     )
 
     private fun entityDef(kind: EntityKind): EntityDef = when (kind) {
-        EntityKind.CHARACTER -> EntityDef(
-            kind,
-            R.string.entity_add_character,
-            R.string.entity_delete_character,
-            R.string.entity_delete_character_confirm,
-            listOf(
-                EntityField("passport.appearance", R.string.field_appearance, multiline = true),
-                EntityField("passport.clothes", R.string.field_clothes, multiline = true),
-                EntityField("passport.video_tokens", R.string.field_video_tokens, multiline = true),
-            )
-        )
         EntityKind.LOCATION -> EntityDef(
             kind,
             R.string.entity_add_location,
@@ -117,30 +125,13 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 EntityField("environment.atmosphere", R.string.field_atmosphere),
             )
         )
-        EntityKind.VOICE -> EntityDef(
-            kind,
-            R.string.entity_add_voice,
-            R.string.entity_delete_voice,
-            R.string.entity_delete_voice_confirm,
-            listOf(
-                // VOICE_REFERENCES.md: timbre + manner (no instruction)
-                EntityField("timbre", R.string.field_timbre, multiline = true),
-                EntityField("manner", R.string.field_manner, multiline = true),
-            )
-        )
-        EntityKind.BEHAVIOR -> EntityDef(
-            kind,
-            R.string.entity_add_behavior,
-            R.string.entity_delete_behavior,
-            R.string.entity_delete_behavior_confirm,
-            listOf(
-                EntityField("baseline", R.string.field_baseline, multiline = true),
-            )
-        )
     }
 
-    /** Editor tab positions that render entity tables (characters/voices/locations/behavior). */
-    private val ENTITY_TABS = setOf(5, 6, 7, 8)
+    /** Editor tab positions with the floating "+": 5 = heroes (add hero), 6 = locations.
+     *  VBook 4: «Герои» replaced «Персонажи» / «Голоса» / «Поведение» (HERO_CARD.md). */
+    private val ENTITY_TABS = setOf(5, 6)
+    private val HEROES_TAB = 5
+    private val LOCATIONS_TAB = 6
 
     // ======================================================
     // Structure add/delete (chapters / scenes / units)
@@ -233,9 +224,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 1 -> showAddStructureDialog(StructureKind.CHAPTER)
                 2 -> showAddStructureDialog(StructureKind.SCENE)
                 4 -> showAddStructureDialog(StructureKind.UNIT)
-                5 -> showAddEntityDialog(EntityKind.CHARACTER)
-                6 -> showAddEntityDialog(EntityKind.VOICE)
-                7 -> showAddBehaviorDialog()
+                HEROES_TAB -> showAddHeroDialog()
                 else -> showAddEntityDialog(EntityKind.LOCATION)
             }
         }
@@ -489,12 +478,14 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 is ResilientReloader.Result.PermanentFailure,
                 is ResilientReloader.Result.TransientFailure -> {
                     setSaveLoading(busy = false)
+                    if (showUnsupportedIfAny(result)) return@launch
                     if (bookData == null) {
                         saveButtonSetError(getString(R.string.edit_load_failed))
                     }
                     return@launch
                 }
             }
+            unsupportedBook = null
             if (viewModel.bookId != bookId) return@launch
             val chs = bd.chapters ?: emptyList()
             val firstCh = chs.firstOrNull()
@@ -538,6 +529,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 is ResilientReloader.Result.Success -> {
                     setUpdateNotice(false)
                     if (viewModel.bookId != bookId) return@launch
+                    unsupportedBook = null
                     bookData = result.value
                     chapters = bookData?.chapters ?: emptyList()
                     viewModel.snapshotCurrentBook()
@@ -546,6 +538,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 is ResilientReloader.Result.TransientFailure -> {
                     setUpdateNotice(false)
                     setSaveLoading(busy = false)
+                    if (showUnsupportedIfAny(result)) return@launch
                     // "Data really unavailable" vs "network blip": the hard
                     // error only fires when there is nothing on screen yet.
                     if (bookData == null) {
@@ -747,10 +740,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
 
     /** Existing entity ids of the given kind — for the add-dialog uniqueness check. */
     private fun existingEntityIds(kind: EntityKind): Set<String> = when (kind) {
-        EntityKind.CHARACTER -> (bookData?.characters ?: emptyList()).mapNotNull { it.id }.toSet()
         EntityKind.LOCATION -> (bookData?.locations ?: emptyMap()).keys.toSet()
-        EntityKind.VOICE -> (bookData?.voices ?: emptyMap()).keys.toSet()
-        EntityKind.BEHAVIOR -> (bookData?.behaviorEntries() ?: emptyMap()).keys.toSet()
     }
 
     /** Flat form values → the backend create payload (mirror of the web builder). */
@@ -759,13 +749,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         values["id"]?.takeIf { it.isNotBlank() }?.let { body["id"] = it }
         values["name"]?.takeIf { it.isNotBlank() }?.let { body["name"] = it }
         when (kind) {
-            EntityKind.CHARACTER -> {
-                val passport = mutableMapOf<String, String>()
-                listOf("appearance", "clothes", "video_tokens").forEach { f ->
-                    values["passport.$f"]?.takeIf { it.isNotBlank() }?.let { passport[f] = it }
-                }
-                if (passport.isNotEmpty()) body["passport"] = passport
-            }
             EntityKind.LOCATION -> {
                 values["description"]?.takeIf { it.isNotBlank() }?.let { body["description"] = it }
                 val env = mutableMapOf<String, String>()
@@ -773,15 +756,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                     values["environment.$f"]?.takeIf { it.isNotBlank() }?.let { env[f] = it }
                 }
                 if (env.isNotEmpty()) body["environment"] = env
-            }
-            EntityKind.VOICE -> {
-                values["timbre"]?.takeIf { it.isNotBlank() }?.let { body["timbre"] = it }
-                values["manner"]?.takeIf { it.isNotBlank() }?.let { body["manner"] = it }
-            }
-            EntityKind.BEHAVIOR -> {
-                // Not reached via showAddEntityDialog (behavior add uses
-                // showAddBehaviorDialog); kept for schema completeness.
-                values["baseline"]?.takeIf { it.isNotBlank() }?.let { body["baseline"] = it }
             }
         }
         return body
@@ -865,12 +839,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
             try {
                 val body = buildCreateBody(kind, values)
                 when (kind) {
-                    EntityKind.CHARACTER -> viewModel.repository.createCharacter(bookId, body)
                     EntityKind.LOCATION -> viewModel.repository.createLocation(bookId, body)
-                    EntityKind.VOICE -> viewModel.repository.createVoice(bookId, body)
-                    // Not reached via showAddEntityDialog — behavior add goes
-                    // through showAddBehaviorDialog/createBehavior below.
-                    EntityKind.BEHAVIOR -> viewModel.repository.createBehavior(bookId, body)
                 }
                 reloadEntityTable()
             } catch (e: Exception) {
@@ -878,105 +847,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 showSaveError("${e::class.simpleName}: ${e.message ?: "unknown"}")
             }
         }
-    }
-
-    /** Behavior add dialog — a behavior belongs to an EXISTING character
-     *  (behavior.json is keyed by character_id), so the dialog offers a
-     *  character spinner (characters without a behavior yet) + baseline
-     *  field instead of the generic free-form id + name form. Same visual
-     *  pattern (TextInputLayout, AppDialogs) as the entity add dialog. */
-    private fun showAddBehaviorDialog() {
-        val ctx = requireContext()
-        val bookId = viewModel.bookId.takeIf { it.isNotBlank() } ?: return
-        val behaviors = bookData?.behaviorEntries() ?: emptyMap()
-        val options = (bookData?.characters ?: emptyList())
-            .filter { !it.id.isNullOrBlank() && it.id !in behaviors }
-            .map { ch ->
-                val id = ch.id ?: ""
-                val label = if (ch.name.isNullOrBlank()) id else "${ch.name} ($id)"
-                id to label
-            }
-        if (options.isEmpty()) {
-            showSaveError(getString(R.string.behavior_no_characters_available))
-            return
-        }
-
-        val container = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        val errorText = TextView(ctx).apply {
-            textSize = 12f
-            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorError))
-            visibility = View.GONE
-            setPadding(0, 8, 0, 0)
-        }
-
-        // Character spinner (required — the server rejects unknown ids with 404).
-        val tilChar = TextInputLayout(ctx).apply {
-            hint = getString(R.string.behavior_character)
-            isHintEnabled = true
-            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-            helperText = getString(R.string.behavior_character_hint)
-        }
-        val sp = android.widget.Spinner(ctx)
-        val adapter = android.widget.ArrayAdapter(ctx, android.R.layout.simple_spinner_item, options.map { it.second })
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        sp.adapter = adapter
-        var selectedCharId = options.first().first
-        sp.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                selectedCharId = options.getOrNull(position)?.first ?: ""
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {
-                selectedCharId = ""
-            }
-        }
-        tilChar.addView(sp)
-        container.addView(tilChar)
-
-        // Baseline (single free-text Behavior field — schema v2.1).
-        val tilBaseline = TextInputLayout(ctx).apply {
-            hint = getString(R.string.field_baseline)
-            isHintEnabled = true
-            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-        }
-        val etBaseline = TextInputEditText(ctx).apply {
-            textSize = 14f
-            minLines = 3
-            gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            setPadding(12, 10, 12, 10)
-        }
-        tilBaseline.addView(etBaseline)
-        container.addView(tilBaseline)
-        container.addView(errorText)
-
-        AppDialogs.action(
-            ctx = ctx,
-            title = getString(R.string.entity_add_behavior),
-            content = container,
-            cancelText = getString(R.string.dialog_cancel),
-            actionText = getString(R.string.edit_save),
-        ) { dlg ->
-            val baseline = etBaseline.text?.toString()?.trim() ?: ""
-            if (selectedCharId.isBlank()) {
-                errorText.text = getString(R.string.behavior_character_required)
-                errorText.visibility = View.VISIBLE
-                return@action
-            }
-            errorText.visibility = View.GONE
-            dlg.dismiss()
-            lifecycleScope.launch {
-                try {
-                    val body = mutableMapOf<String, Any?>("character_id" to selectedCharId)
-                    if (baseline.isNotBlank()) body["baseline"] = baseline
-                    viewModel.repository.createBehavior(bookId, body)
-                    reloadEntityTable()
-                } catch (e: Exception) {
-                    Log.e("EditFragment", "behavior create failed", e)
-                    showSaveError("${e::class.simpleName}: ${e.message ?: "unknown"}")
-                }
-            }
-        }.show()
     }
 
     /** Delete confirmation — destructive action never fires without confirmation. */
@@ -1009,10 +879,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
             lifecycleScope.launch {
                 try {
                     when (kind) {
-                        EntityKind.CHARACTER -> viewModel.repository.deleteCharacter(bookId, id)
                         EntityKind.LOCATION -> viewModel.repository.deleteLocation(bookId, id)
-                        EntityKind.VOICE -> viewModel.repository.deleteVoice(bookId, id)
-                        EntityKind.BEHAVIOR -> viewModel.repository.deleteBehavior(bookId, id)
                     }
                     reloadEntityTable()
                 } catch (e: Exception) {
@@ -1702,16 +1569,23 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         try {
             val frame = binding?.contentFrame ?: return
             frame.removeAllViews()
+            // VBook 3.1 book: a final state, not an error to retry (VBOOK_FORMAT_V4.md §9).
+            unsupportedBook?.let { info ->
+                buildUnsupportedBook(frame, info)
+                binding?.entityAddButton?.visibility = View.GONE
+                binding?.saveButton?.visibility = View.GONE
+                return
+            }
+            // The hero card saves itself; the editor button has nothing to send there.
+            binding?.saveButton?.visibility = if (tab == HEROES_TAB) View.GONE else View.VISIBLE
             when (tab) {
                 0 -> buildGlobalFields(frame)
                 1 -> buildChapterFields(frame)
                 2 -> buildSceneFields(frame)
                 3 -> buildFields(frame, listOf("voice", "full_text"))
                 4 -> buildUnitFields(frame)
-                5 -> buildCharactersFields(frame)
-                6 -> buildVoicesFields(frame)
-                7 -> buildBehaviorsFields(frame)
-                8 -> buildLocationsFields(frame)
+                HEROES_TAB -> buildHeroesTab(frame)
+                LOCATIONS_TAB -> buildLocationsFields(frame)
             }
             // Entity tables (characters/voices/locations) and structure tabs
             // (chapters/scenes/units) get the floating "+" overlay button —
@@ -1898,245 +1772,309 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         dur.text = getString(R.string.edit_unit_duration, durSec)
     }
 
-    private fun buildCharactersFields(parent: ViewGroup) {
-        val ctx = parent.context
+    // ======================================================
+    // VBook 4 heroes — «Герои» tab, hero card, scene looks, 3.1 state
+    // ======================================================
+    // Web twin: pages/EditPage.tsx buildHeroesPanel / buildSceneLooks,
+    // features/heroes/{HeroesPanel,HeroCard,BookProblems}.tsx. Building the tab
+    // calls no API; opening a card READS the candidate list only; every write
+    // is an explicit action and is followed by a fresh GET /book.
+
+    private fun heroCardData(): HeroCardDialog.Data {
         val bd = bookData
-        val characters = bd?.characters ?: emptyList()
-
-        val ll = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 8)
-        }
-
-        if (characters.isEmpty()) {
-            ll.addView(TextView(ctx).apply {
-                text = getString(R.string.edit_no_characters)
-                textSize = 13f
-                setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
-                setPadding(0, 8, 0, 8)
-            })
-        } else {
-            characters.forEach { ch ->
-                val card = MaterialCardView(ctx).apply {
-                    layoutParams = ViewGroup.MarginLayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    ).also { it.setMargins(0, 0, 0, 6) }
-                    radius = 12f
-                    cardElevation = 1f
-                    setContentPadding(12, 8, 12, 8)
-                }
-
-                val inner = LinearLayout(ctx).apply {
-                    orientation = LinearLayout.VERTICAL
-                }
-
-                val charId = ch.id ?: "char_unknown"
-                // Header row: entity id (read-only, bold) + delete button (web parity)
-                inner.addView(entityCardHead(ctx, charId) {
-                    showDeleteConfirmDialog(EntityKind.CHARACTER, charId)
-                })
-                // Name key is scoped per character (web parity) — the old bare
-                // "name" key made every character's name field share one slot.
-                inner.addView(inputCard(ctx, getString(R.string.field_name), ch.name ?: "", false, boldValue = true, storeKey = "char.${charId}.name"))
-
-                // Passport fields — always rendered (web parity): a character
-                // without a passport can still get one from the editor.
-                val passport = ch.passport
-                val passportLabel = TextView(ctx).apply {
-                    text = getString(R.string.field_passport)
-                    textSize = 12f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorSecondary))
-                    setPadding(0, 8, 0, 4)
-                }
-                inner.addView(passportLabel)
-
-                val passportPrefix = "char.${charId}.passport"
-                val passportKeys = listOf(
-                    "${passportPrefix}.appearance",
-                    "${passportPrefix}.clothes",
-                    "${passportPrefix}.video_tokens"
-                )
-                val pf = mapOf(
-                    "${passportPrefix}.appearance" to (passport?.appearance ?: ""),
-                    "${passportPrefix}.clothes" to (passport?.clothes ?: ""),
-                    "${passportPrefix}.video_tokens" to (passport?.videoTokensAsText() ?: "")
-                )
-
-                passportKeys.forEach { key ->
-                    val v = pf[key] ?: ""
-                    if (!fieldValues.containsKey(key)) fieldValues[key] = v
-                    inner.addView(inputCard(ctx, passportFieldLabel(key), fieldValues[key] ?: v, (v.length > 80), storeKey = key))
-                }
-
-                card.addView(inner)
-                ll.addView(card)
-            }
-        }
-
-        parent.addView(ll)
+        return HeroCardDialog.Data(
+            heroes = bd?.heroList() ?: emptyList(),
+            issues = bd?.heroIssues() ?: emptyList(),
+            chapters = bd?.lookChapters() ?: emptyList(),
+            globals = bd?.behaviourGlobals(),
+        )
     }
 
-    // ── Behavior structured fields (schema v2) — line-based editor text ⇆ JSON ──
-    // Identical rules on web and Android: quirks — one per line; reactions —
-    // one pattern per line "trigger → reaction" ("→" or "->", earliest
-    // separator wins; a line without a separator keeps the whole text as
-    // trigger with an empty reaction). Untouched text never produces a PATCH.
-
-    private fun behaviorQuirksToText(quirks: List<String>?): String =
-        (quirks ?: emptyList()).joinToString("\n")
-
-    private fun behaviorReactionsToText(reactions: List<BehaviorReaction>?): String =
-        (reactions ?: emptyList()).joinToString("\n") { r ->
-            val trigger = r.trigger?.trim() ?: ""
-            val reaction = r.reaction?.trim() ?: ""
-            if (reaction.isEmpty()) trigger else "$trigger → $reaction"
-        }
-
-    private fun behaviorReactionsFromText(text: String): List<Map<String, String?>> =
-        text.split('\n')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .map { line ->
-                val separators = listOfNotNull(
-                    line.indexOf("→").takeIf { it >= 0 },
-                    line.indexOf("->").takeIf { it >= 0 },
-                )
-                if (separators.isEmpty()) {
-                    mapOf("trigger" to line, "reaction" to null)
-                } else {
-                    val at = separators.min()
-                    val sepLen = if (line[at] == '→') 1 else 2
-                    mapOf(
-                        "trigger" to line.substring(0, at).trim(),
-                        "reaction" to line.substring(at + sepLen).trim().takeIf { it.isNotEmpty() },
-                    )
-                }
-            }
-
-    /** Behaviors tab — one card per behavior keyed by character_id
-     *  (behavior.json mirrors voices.json); the header shows the character's
-     *  name when known, delete follows the shared entity flow. */
-    private fun buildBehaviorsFields(parent: ViewGroup) {
+    private fun buildHeroesTab(parent: ViewGroup) {
         val ctx = parent.context
-        val bd = bookData
-        val behaviors = bd?.behaviorEntries() ?: emptyMap()
-        val characters = bd?.characters ?: emptyList()
-
-        val ll = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 8)
-        }
-
-        if (behaviors.isEmpty()) {
-            ll.addView(TextView(ctx).apply {
-                text = getString(R.string.edit_no_behaviors)
-                textSize = 13f
-                setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
-                setPadding(0, 8, 0, 8)
-            })
-        } else {
-            behaviors.forEach { (charId, entry) ->
-                val card = MaterialCardView(ctx).apply {
-                    layoutParams = ViewGroup.MarginLayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    ).also { it.setMargins(0, 0, 0, 6) }
-                    radius = 12f
-                    cardElevation = 1f
-                    setContentPadding(12, 8, 12, 8)
-                }
-
-                val inner = LinearLayout(ctx).apply {
-                    orientation = LinearLayout.VERTICAL
-                }
-
-                // Header row: character id (+name) + delete button (web parity)
-                val ch = characters.find { it.id == charId }
-                val headTitle = if (ch?.name.isNullOrBlank()) charId else "$charId — ${ch?.name}"
-                inner.addView(entityCardHead(ctx, headTitle) {
-                    showDeleteConfirmDialog(EntityKind.BEHAVIOR, charId)
-                })
-
-                // Schema v2.1: baseline is plain text; quirks/reactions
-                // round-trip through line-based text (behaviorQuirksToText /
-                // behaviorReactionsToText — same rules as the web editor).
-                listOf(
-                    Triple("behavior.$charId.baseline", entry.baseline ?: "", R.string.field_baseline),
-                    Triple("behavior.$charId.quirks", behaviorQuirksToText(entry.quirks), R.string.field_quirks),
-                    Triple("behavior.$charId.reactions", behaviorReactionsToText(entry.reactions), R.string.field_reactions),
-                ).forEach { (key, v, labelRes) ->
-                    val multiline = key.endsWith(".quirks") || key.endsWith(".reactions")
-                    if (!fieldValues.containsKey(key)) fieldValues[key] = v
-                    inner.addView(inputCard(ctx, getString(labelRes), fieldValues[key] ?: v, multiline || v.length > 80, storeKey = key))
-                }
-
-                card.addView(inner)
-                ll.addView(card)
-            }
-        }
-
-        parent.addView(ll)
+        val bd = bookData ?: return
+        HeroesPanel.build(
+            ctx, parent, bd.heroList(), bd.heroIssues(),
+            onOpen = { openHeroCard(it) },
+            onAdd = { showAddHeroDialog() },
+            onDeleteBroken = { confirmDeleteBroken(it) },
+        )
     }
 
-    private fun buildVoicesFields(parent: ViewGroup) {
-        val ctx = parent.context
-        val bd = bookData
-        val voices = bd?.voices ?: emptyMap()
+    /** Re-read GET /book after a hero action; the open card follows the fresh hero. */
+    private suspend fun refreshAfterHeroChange() {
+        val bookId = viewModel.bookId.takeIf { it.isNotBlank() } ?: return
+        val fresh = runCatching { viewModel.repository.getBook(bookId) }.getOrNull() ?: return
+        if (viewModel.bookId != bookId) return
+        bookData = fresh
+        chapters = fresh.chapters ?: emptyList()
+        viewModel.repository.notifyBookChanged(bookId)
+        viewModel.markUnsavedChanges()
+        val tab = binding?.propertyTabs?.selectedTabPosition ?: 0
+        if (tab == HEROES_TAB || tab == 2) rebuildContent(tab)
+        heroCard?.let { card -> card.refresh(HeroModel.findHero(fresh.heroList(), card.heroId)) }
+    }
 
-        val ll = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 8)
+    private fun openHeroCard(hero: Hero) {
+        val bookId = viewModel.bookId.takeIf { it.isNotBlank() } ?: return
+        heroCard?.dismiss()
+        val controller = HeroCardController(viewModel.repository.heroes, bookId, hero) { refreshAfterHeroChange() }
+        val card = HeroCardDialog(
+            ctx = requireContext(),
+            scope = lifecycleScope,
+            controller = controller,
+            data = { heroCardData() },
+            onNavigate = { chId, scId -> openSceneFromHero(chId, scId) },
+            pickFile = { mime, cb -> pendingPick = cb; pickLauncher.launch(mime) },
+            readUri = { uri -> readPickedFile(uri) },
+            onClosed = { heroCard = null },
+        )
+        heroCard = card
+        card.show()
+    }
+
+    /** (name, mime, bytes) of a picked file — at most 20 MB (the backend upload limit). */
+    private fun readPickedFile(uri: android.net.Uri): Triple<String, String, ByteArray>? = runCatching {
+        val cr = requireContext().contentResolver
+        var name = "upload"
+        cr.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0)?.let { name = it }
         }
+        val mime = cr.getType(uri) ?: "application/octet-stream"
+        val bytes = cr.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching null
+        if (bytes.size > 20 * 1024 * 1024) {
+            showSaveError(getString(R.string.edit_load_failed))
+            return@runCatching null
+        }
+        Triple(name, mime, bytes)
+    }.getOrNull()
 
-        if (voices.isEmpty()) {
-            ll.addView(TextView(ctx).apply {
-                text = getString(R.string.edit_no_voices)
-                textSize = 13f
-                setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
-                setPadding(0, 8, 0, 8)
-            })
-        } else {
-            voices.forEach { (voiceId, entry) ->
-                val card = MaterialCardView(ctx).apply {
-                    layoutParams = ViewGroup.MarginLayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    ).also { it.setMargins(0, 0, 0, 6) }
-                    radius = 12f
-                    cardElevation = 1f
-                    setContentPadding(12, 8, 12, 8)
+    /** «Where the look is in effect» → the scene in the editor. */
+    private fun openSceneFromHero(chapterId: String, sceneId: String?) {
+        val ch = chapters.firstOrNull { it.chapter_id == chapterId } ?: return
+        val sc = (ch.scenes ?: emptyList()).firstOrNull { it.scene_id == sceneId } ?: ch.scenes?.firstOrNull() ?: return
+        SharedPositionManager.navigateTo(chapterId = chapterId, sceneId = sc.scene_id, unitId = sc.units?.firstOrNull()?.id, chunkId = null, unitIndex = 0)
+        binding?.propertyTabs?.getTabAt(2)?.select()
+    }
+
+    private fun showAddHeroDialog() {
+        val ctx = requireContext()
+        val bookId = viewModel.bookId.takeIf { it.isNotBlank() } ?: return
+        val existing = bookData?.heroList()?.map { it.id } ?: emptyList()
+        var character = true
+        var name = ""
+        var id = ""
+        val form = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val kindHint = TextView(ctx).apply { textSize = 12f }
+        val group = android.widget.RadioGroup(ctx).apply { orientation = android.widget.RadioGroup.HORIZONTAL }
+        val rbChar = android.widget.RadioButton(ctx).apply { text = ctx.heroStr("hero_kind_character"); this.id = View.generateViewId(); isChecked = true }
+        val rbVoice = android.widget.RadioButton(ctx).apply { text = ctx.heroStr("hero_kind_voice_only"); this.id = View.generateViewId() }
+        group.addView(rbChar); group.addView(rbVoice)
+        fun syncKind() { kindHint.text = ctx.heroStr(if (character) "hero_add_kind_character_hint" else "hero_add_kind_voice_hint") }
+        group.setOnCheckedChangeListener { _, checked -> character = checked == rbChar.id; syncKind() }
+        syncKind()
+        val errorView = TextView(ctx).apply {
+            textSize = 12f
+            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorError))
+        }
+        fun input(label: String, helper: String?, onChange: (String) -> Unit): View {
+            val til = TextInputLayout(ctx).apply { hint = label; boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE; if (helper != null) helperText = helper }
+            til.addView(TextInputEditText(ctx).apply { isSingleLine = true; addTextChangedListener(simpleWatcher(onChange)) })
+            return til
+        }
+        form.addView(group)
+        form.addView(kindHint)
+        form.addView(input(ctx.heroStr("hero_field_name"), null) { name = it })
+        form.addView(input(ctx.heroStr("hero_field_id"), ctx.heroStr("hero_add_id_hint")) { id = it })
+        form.addView(errorView)
+        AppDialogs.action(
+            ctx = ctx,
+            title = ctx.heroStr("hero_add_title"),
+            content = form,
+            cancelText = ctx.heroStr("hero_cancel"),
+            actionText = getString(R.string.edit_save),
+        ) { dlg ->
+            val idError = HeroModel.validateNewHeroId(id, existing)
+            if (name.isBlank() || idError != null) {
+                errorView.text = idError?.let { ctx.heroStr(it) } ?: getString(R.string.entity_name_required)
+                return@action
+            }
+            lifecycleScope.launch {
+                try {
+                    // The block that defines the kind is created empty; the card fills it.
+                    val body = LinkedHashMap<String, Any?>()
+                    if (id.isNotBlank()) body["id"] = id.trim()
+                    body["name"] = name.trim()
+                    if (character) body["passport"] = emptyMap<String, Any?>() else body["voice"] = emptyMap<String, Any?>()
+                    val res = viewModel.repository.heroes.createHero(bookId, body)
+                    dlg.dismiss()
+                    refreshAfterHeroChange()
+                    val newId = res.hero_id ?: id.trim()
+                    bookData?.heroList()?.let { HeroModel.findHero(it, newId) }?.let { openHeroCard(it) }
+                } catch (e: Exception) {
+                    val known = (e as? HeroApiError)?.error?.let { mapOf("hero_exists" to "hero_id_taken", "reserved_id" to "hero_id_reserved")[it] }
+                    errorView.text = known?.let { ctx.heroStr(it) } ?: ctx.uiText(HeroCardLogic.errorText(e))
                 }
+            }
+        }.show()
+    }
 
-                val inner = LinearLayout(ctx).apply {
-                    orientation = LinearLayout.VERTICAL
-                }
-
-                // Header row: voice id (bold) + delete button (web parity)
-                inner.addView(entityCardHead(ctx, voiceId) {
-                    showDeleteConfirmDialog(EntityKind.VOICE, voiceId)
-                })
-
-                // VOICE_REFERENCES.md: timbre + manner; the voice reference block is
-                // web-only for now (GAP in animastor-docs ANDROID_WEB_PARITY.md)
-                for ((field, label) in listOf("timbre" to R.string.field_timbre, "manner" to R.string.field_manner)) {
-                    val value = (if (field == "timbre") entry.timbre else entry.manner) ?: ""
-                    val key = "voice.${voiceId}.$field"
-                    if (!fieldValues.containsKey(key)) fieldValues[key] = value
-                    inner.addView(inputCard(ctx, getString(label), fieldValues[key] ?: value, value.length > 80, storeKey = key))
-                    if (field == "timbre" && entry.timbre_source == "cleaned") {
-                        inner.addView(TextView(ctx).apply { text = getString(R.string.voice_ref_cleaned_hint); textSize = 12f })
+    /** A broken hero file: by hero id → DELETE /heroes/:id?broken=1; any other name → DELETE /hero-files?file= (В14). */
+    private fun confirmDeleteBroken(issue: HeroIssue) {
+        val ctx = requireContext()
+        val bookId = viewModel.bookId.takeIf { it.isNotBlank() } ?: return
+        val target = HeroModel.brokenFileTarget(issue) ?: return
+        androidx.appcompat.app.AlertDialog.Builder(ctx)
+            .setTitle(ctx.heroStr("hero_broken_title"))
+            .setMessage(ctx.heroStr("hero_broken_confirm", issue.file ?: issue.hero_id ?: ""))
+            .setNegativeButton(ctx.heroStr("hero_cancel"), null)
+            .setPositiveButton(getString(R.string.entity_delete)) { _, _ ->
+                lifecycleScope.launch {
+                    try {
+                        when (target) {
+                            is BrokenFileTarget.ByHero -> viewModel.repository.heroes.deleteHero(bookId, target.heroId, broken = true)
+                            is BrokenFileTarget.ByFile -> viewModel.repository.heroes.deleteBrokenHeroFile(bookId, target.file)
+                        }
+                        refreshAfterHeroChange()
+                    } catch (e: Exception) {
+                        showSaveError(ctx.uiText(HeroCardLogic.errorText(e)))
                     }
                 }
-
-                card.addView(inner)
-                ll.addView(card)
             }
-        }
-
-        parent.addView(ll)
+            .show()
     }
+
+    /** Book problems on the Scene tab: unknown_participant with a link to every scene that names it. */
+    private fun buildBookProblems(parent: ViewGroup) {
+        val ctx = parent.context
+        val unknown = HeroModel.unknownParticipants(bookData?.heroIssues() ?: emptyList())
+        if (unknown.isEmpty()) return
+        val card = MaterialCardView(ctx).apply {
+            layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.setMargins(0, 0, 0, 8) }
+            radius = 12f
+            cardElevation = 1f
+            setContentPadding(16, 10, 16, 10)
+            tag = "book-problems"
+        }
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(TextView(ctx).apply { text = ctx.heroStr("book_problems_title"); textSize = 15f; typeface = android.graphics.Typeface.DEFAULT_BOLD })
+        val currentCh = chapters.getOrNull(currentChIndex)?.chapter_id
+        val currentSc = currentScene()?.scene_id
+        unknown.forEach { u ->
+            col.addView(TextView(ctx).apply { text = ctx.heroStr("book_problem_unknown_participant", u.participant); textSize = 13f })
+            val links = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            u.scenes.forEach { ref ->
+                val here = ref.chapter_id == currentCh && ref.scene_id == currentSc
+                links.addView(com.google.android.material.button.MaterialButton(ctx, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+                    text = sceneLinkLabel(ref.chapter_id, ref.scene_id) + if (here) " •" else ""
+                    isAllCaps = false
+                    setOnClickListener { openSceneFromHero(ref.chapter_id, ref.scene_id) }
+                })
+            }
+            col.addView(android.widget.HorizontalScrollView(ctx).apply { addView(links) })
+        }
+        card.addView(col)
+        parent.addView(card)
+    }
+
+    /** «Глава 2 · сцена 3» for a scene link. */
+    private fun sceneLinkLabel(chapterId: String, sceneId: String): String {
+        val ctx = requireContext()
+        val ci = chapters.indexOfFirst { it.chapter_id == chapterId }
+        val ch = chapters.getOrNull(ci) ?: return "$chapterId · $sceneId"
+        val si = (ch.scenes ?: emptyList()).indexOfFirst { it.scene_id == sceneId }
+        val sc = ch.scenes?.getOrNull(si) ?: return "$chapterId · $sceneId"
+        return ctx.heroStr("look_place_chapter", ch.display_number ?: (ci + 1)) + " · " + ctx.heroStr("look_place_scene", sc.display_index ?: (si + 1))
+    }
+
+    /**
+     * The look of every participant that has looks: «as in the chapter» / base /
+     * a named look. An immediate action (POST /looks/assign), not part of the
+     * scene draft (web buildSceneLooks).
+     */
+    private fun buildSceneLooks(parent: ViewGroup, sc: Scene) {
+        val ctx = parent.context
+        val ch = chapters.getOrNull(currentChIndex) ?: return
+        val chId = ch.chapter_id ?: return
+        val scId = sc.scene_id ?: return
+        val bookId = viewModel.bookId.takeIf { it.isNotBlank() } ?: return
+        val withLooks = (bookData?.heroList() ?: emptyList()).filter { h ->
+            h.id in (sc.participants ?: emptyList()) && h.passport != null && !h.looks.isNullOrEmpty()
+        }
+        withLooks.forEach { h ->
+            val inherited = HeroModel.resolveLook(h, ch.toLookChapter(), null)
+            val inheritedName = if (inherited != null && inherited.look_id != HeroModel.BASE_LOOK) {
+                HeroModel.findLook(h, inherited.look_id)?.label ?: inherited.look_id
+            } else ctx.heroStr("look_base")
+            val values = listOf("") + HeroModel.BASE_LOOK + (h.looks ?: emptyList()).map { it.id }
+            val labels = listOf(ctx.heroStr("scene_look_inherit", inheritedName), ctx.heroStr("look_base")) +
+                (h.looks ?: emptyList()).map { it.label?.ifBlank { null } ?: it.id }
+            val til = TextInputLayout(ctx).apply {
+                hint = ctx.heroStr("scene_look_label", h.name?.ifBlank { null } ?: h.id)
+                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+            }
+            val spinner = android.widget.Spinner(ctx)
+            spinner.adapter = android.widget.ArrayAdapter(ctx, android.R.layout.simple_spinner_dropdown_item, labels)
+            val current = sc.looks?.get(h.id) ?: ""
+            spinner.setSelection(values.indexOf(current).coerceAtLeast(0), false)
+            spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, position: Int, id: Long) {
+                    val value = values.getOrNull(position) ?: return
+                    if (value == current) return
+                    lifecycleScope.launch {
+                        try {
+                            viewModel.repository.heroes.assignLook(bookId, h.id, value.ifEmpty { null }, LookAssignment(emptyList(), listOf(HeroSceneRef(chId, scId))))
+                            refreshAfterHeroChange()
+                        } catch (e: Exception) {
+                            showSaveError(ctx.uiText(HeroCardLogic.errorText(e)))
+                        }
+                    }
+                }
+                override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+            }
+            til.addView(spinner)
+            parent.addView(MaterialCardView(ctx).apply {
+                layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.setMargins(0, 0, 0, 8) }
+                radius = 12f
+                cardElevation = 2f
+                addView(til)
+            })
+        }
+    }
+
+    /** 409 unsupported_vbook_version of GET /book → the final «delete and import again» state. */
+    private fun showUnsupportedIfAny(result: ResilientReloader.Result<*>): Boolean {
+        val cause = when (result) {
+            is ResilientReloader.Result.PermanentFailure -> result.cause
+            is ResilientReloader.Result.TransientFailure -> result.cause
+            else -> null
+        }
+        val http = cause as? retrofit2.HttpException ?: return false
+        if (http.code() != 409) return false
+        val body = HeroRepository.parseObject(runCatching { http.response()?.errorBody()?.string() }.getOrNull())
+        val info = HeroModel.unsupportedVbook(body) ?: return false
+        unsupportedBook = info
+        bookData = null
+        chapters = emptyList()
+        heroCard?.dismiss()
+        binding?.errorText?.visibility = View.GONE
+        rebuildContent(binding?.propertyTabs?.selectedTabPosition ?: 0)
+        return true
+    }
+
+    private fun buildUnsupportedBook(parent: ViewGroup, info: UnsupportedVbook) {
+        val ctx = parent.context
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(8, 24, 8, 24); tag = "vbook-unsupported" }
+        col.addView(TextView(ctx).apply { text = ctx.heroStr("vbook_unsupported_title"); textSize = 18f; typeface = android.graphics.Typeface.DEFAULT_BOLD })
+        col.addView(TextView(ctx).apply { text = ctx.heroStr("vbook_unsupported_body", info.version, info.supported); textSize = 14f; setPadding(0, 12, 0, 12) })
+        col.addView(TextView(ctx).apply {
+            text = ctx.heroStr("vbook_unsupported_action")
+            textSize = 14f
+            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorError))
+        })
+        parent.addView(col)
+    }
+
 
     private fun buildLocationsFields(parent: ViewGroup) {
         val ctx = parent.context
@@ -2384,8 +2322,12 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
             ll.addView(inputCard(ctx, fieldLabel(key), fieldValues[key] ?: v, (fieldValues[key]?.length ?: 0) > 80, storeKey = key))
         }
 
-        // ── Section: Characters (participants + scene character overrides) ──
+        // ── Book problems: scene participants that are no hero (unknown_participant) ──
+        buildBookProblems(ll)
+
+        // ── Section: Characters (participants + looks + one-off look patch) ──
         ll.addView(sectionLabel(ctx, getString(R.string.edit_section_scene_characters)))
+        buildSceneLooks(ll, sc)
         val participantsKey = "participants"
         val participantsVal = readField(sc, participantsKey)
         if (!fieldValues.containsKey(participantsKey)) fieldValues[participantsKey] = participantsVal
@@ -2432,11 +2374,11 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         if (passportBlocksSceneKey == key) return
         passportBlocksSceneKey = key
         passportOverrideBlocks.clear()
-        (sc.passport ?: emptyMap()).forEach { (charId, p) ->
+        (sc.look_patch ?: emptyMap()).forEach { (charId, p) ->
             val block = PassportOverrideBlock(charId)
-            p.appearance?.let { block.fields["appearance"] = it }
-            p.clothes?.let { block.fields["clothes"] = it }
-            if (p.video_tokens != null) block.fields["video_tokens"] = p.videoTokensAsText()
+            SceneLooks.LOOK_PATCH_FIELDS.forEach { f ->
+                SceneLooks.lookPatchText(SceneLooks.patchValue(p, f)).takeIf { it.isNotEmpty() }?.let { block.fields[f] = it }
+            }
             passportOverrideBlocks.add(block)
         }
         // Always keep at least one (possibly empty) free block
@@ -2562,44 +2504,15 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     }
 
     /**
-     * Build the flat passport.<charId>.<field> keys for the PATCH — diffed against the
-     * scene's existing overrides so cleared fields are removed server-side (setDeep '' → null).
+     * The flat look_patch.<hero>.<field> keys for the scene PATCH — diffed against
+     * the scene's stored look_patch (SceneLooks.lookPatchFields, web lookPatchFields):
+     * a cleared field goes out as "" and is removed server-side.
      */
-    private fun buildPassportOverrideFields(sc: Scene): Map<String, String> {
-        val result = mutableMapOf<String, String>()
-        val desired = linkedMapOf<String, MutableMap<String, String>>()
-        for (block in passportOverrideBlocks) {
-            if (!block.isUsed()) continue
-            val charId = block.charId.trim()
-            if (charId.isEmpty()) continue
-            val m = desired.getOrPut(charId) { mutableMapOf() }
-            for (f in passportOverrideFields) {
-                val v = block.fields[f]?.trim() ?: ""
-                if (v.isNotEmpty()) m[f] = v
-            }
-        }
-        val existing = sc.passport ?: emptyMap()
-        val allCharIds = desired.keys + existing.keys
-        for (charId in allCharIds) {
-            val want = desired[charId]
-            val have = existing[charId]
-            for (f in passportOverrideFields) {
-                val newVal = want?.get(f) ?: ""
-                val oldVal = passportFieldOf(have, f) ?: ""
-                if (newVal != oldVal) {
-                    result["passport.$charId.$f"] = newVal
-                }
-            }
-        }
-        return result
-    }
-
-    private fun passportFieldOf(p: CharPassport?, field: String): String? = when (field) {
-        "appearance" -> p?.appearance
-        "clothes" -> p?.clothes
-        "video_tokens" -> p?.videoTokensAsText()
-        else -> null
-    }
+    private fun buildLookPatchFields(sc: Scene): Map<String, String> =
+        SceneLooks.lookPatchFields(
+            passportOverrideBlocks.filter { it.isUsed() }.map { SceneLooks.LookPatchBlock(it.charId, it.fields.toMap()) },
+            sc.look_patch,
+        )
 
     private fun sectionLabel(ctx: Context, text: String): View = TextView(ctx).apply {
         this.text = text
@@ -2710,21 +2623,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         "clothes" -> getString(R.string.field_clothes)
         "video_tokens" -> getString(R.string.field_video_tokens)
         else -> key
-    }
-
-    /**
-     * Render a passport field value as editable text (web parity).
-     * video_tokens may be a legacy string OR an array of features —
-     * videoTokensAsText() joins arrays with ", ".
-     */
-    private fun passportFieldText(p: CharPassport?, field: String): String {
-        if (p == null) return ""
-        return when (field) {
-            "appearance" -> p.appearance ?: ""
-            "clothes" -> p.clothes ?: ""
-            "video_tokens" -> p.videoTokensAsText()
-            else -> ""
-        }
     }
 
     private fun markDirty() {
@@ -2900,7 +2798,7 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
             }
 
             // Locations tab (8) — save per-location fields via dedicated PATCH
-            if (selectedTab == 8) {
+            if (selectedTab == LOCATIONS_TAB) {
                 setSaveLoading(true)
                 lifecycleScope.launch {
                     try {
@@ -2946,207 +2844,10 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                 return
             }
 
-            // Characters tab (5) — dedicated PATCH per changed character
-            // (name + passport), mirroring the web EditPage CHARS_TAB branch.
-            // Without this branch Android's generic save below pushed char.*
-            // keys into the scene/unit object as junk that never reached
-            // characters.json (the generator reads characters.json).
-            if (selectedTab == 5) {
-                setSaveLoading(true)
-                lifecycleScope.launch {
-                    try {
-                        // Group char.* keys from the shared fieldValues map
-                        val byChar = mutableMapOf<String, MutableMap<String, String>>()
-                        fieldValues.forEach { (key, value) ->
-                            if (key.startsWith("char.")) {
-                                val rest = key.removePrefix("char.")
-                                val dot = rest.indexOf('.')
-                                if (dot > 0) {
-                                    val charId = rest.substring(0, dot)
-                                    val fieldKey = rest.substring(dot + 1)
-                                    byChar.getOrPut(charId) { mutableMapOf() }[fieldKey] = value
-                                }
-                            }
-                        }
-
-                        if (byChar.isEmpty()) {
-                            setSaveLoading(false)
-                            return@launch
-                        }
-
-                        val chars = bd.characters ?: emptyList()
-                        var anyChanged = false
-                        byChar.forEach { (charId, fields) ->
-                            // Diff vs canonical data — skip untouched entities.
-                            val orig = chars.find { it.id == charId }
-                            // Skip entities deleted since the editor rendered
-                            // (stale fieldValues must not PATCH a 404).
-                            if (orig == null) return@forEach
-                            val changed = mutableMapOf<String, String>()
-                            fields.forEach { (k, v) ->
-                                val oldVal = when {
-                                    k == "name" -> orig.name ?: ""
-                                    k.startsWith("passport.") -> passportFieldText(orig.passport, k.removePrefix("passport."))
-                                    else -> ""
-                                }
-                                if (v != oldVal) changed[k] = v
-                            }
-                            if (changed.isEmpty()) return@forEach
-                            anyChanged = true
-                            viewModel.repository.patchCharacter(bookId, charId, changed)
-                        }
-
-                        if (!anyChanged) {
-                            setSaveLoading(false)
-                            return@launch
-                        }
-
-                        // Thin-client: re-fetch canonical book data instead of
-                        // reconstructing it locally (server is the source of truth).
-                        bookData = runCatching { viewModel.repository.getBook(bookId) }.getOrNull()
-                        chapters = bookData?.chapters ?: emptyList()
-                        viewModel.markUnsavedChanges()
-                        setSaveLoading(false)
-                        errorText?.visibility = View.GONE
-                    } catch (e: Exception) {
-                        Log.e("EditFragment", "characters save failed", e)
-                        showSaveError("${e::class.simpleName}: ${e.message ?: "unknown"}")
-                    }
-                }
-                return
-            }
-
-            // Voices tab (6) — dedicated PATCH per changed voice (instruction),
-            // mirroring the web EditPage VOICES_TAB branch. Same reasoning as
-            // the characters branch: voice.* keys must not leak into scenes.
-            if (selectedTab == 6) {
-                setSaveLoading(true)
-                lifecycleScope.launch {
-                    try {
-                        val byVoice = mutableMapOf<String, MutableMap<String, String>>()
-                        fieldValues.forEach { (key, value) ->
-                            if (key.startsWith("voice.")) {
-                                val rest = key.removePrefix("voice.")
-                                val dot = rest.indexOf('.')
-                                if (dot > 0) {
-                                    val voiceId = rest.substring(0, dot)
-                                    val fieldKey = rest.substring(dot + 1)
-                                    byVoice.getOrPut(voiceId) { mutableMapOf() }[fieldKey] = value
-                                }
-                            }
-                        }
-
-                        if (byVoice.isEmpty()) {
-                            setSaveLoading(false)
-                            return@launch
-                        }
-
-                        val voices = bd.voices ?: emptyMap()
-                        var anyChanged = false
-                        byVoice.forEach { (voiceId, fields) ->
-                            // Skip entities deleted since the editor rendered
-                            // (stale fieldValues must not PATCH a 404).
-                            if (!voices.containsKey(voiceId)) return@forEach
-                            val entry = voices[voiceId]
-                            val changed = mutableMapOf<String, String>()
-                            fields.forEach { (k, v) ->
-                                val orig = when (k) { "timbre" -> entry?.timbre ?: ""; "manner" -> entry?.manner ?: ""; else -> null }
-                                if (orig != null && v != orig) changed[k] = v
-                            }
-                            if (changed.isEmpty()) return@forEach
-                            anyChanged = true
-                            viewModel.repository.patchVoice(bookId, voiceId, changed)
-                        }
-
-                        if (!anyChanged) {
-                            setSaveLoading(false)
-                            return@launch
-                        }
-
-                        bookData = runCatching { viewModel.repository.getBook(bookId) }.getOrNull()
-                        chapters = bookData?.chapters ?: emptyList()
-                        viewModel.markUnsavedChanges()
-                        setSaveLoading(false)
-                        errorText?.visibility = View.GONE
-                    } catch (e: Exception) {
-                        Log.e("EditFragment", "voices save failed", e)
-                        showSaveError("${e::class.simpleName}: ${e.message ?: "unknown"}")
-                    }
-                }
-                return
-            }
-
-            // Behaviors tab (7) — dedicated PATCH per changed behavior,
-            // mirroring the web EditPage BEHAVIORS_TAB branch.
-            // behavior.* keys must not leak into the scene PATCH below.
-            if (selectedTab == 7) {
-                setSaveLoading(true)
-                lifecycleScope.launch {
-                    try {
-                        val byChar = mutableMapOf<String, MutableMap<String, String>>()
-                        fieldValues.forEach { (key, value) ->
-                            if (key.startsWith("behavior.")) {
-                                val rest = key.removePrefix("behavior.")
-                                val dot = rest.indexOf('.')
-                                if (dot > 0) {
-                                    val charId = rest.substring(0, dot)
-                                    val fieldKey = rest.substring(dot + 1)
-                                    byChar.getOrPut(charId) { mutableMapOf() }[fieldKey] = value
-                                }
-                            }
-                        }
-
-                        if (byChar.isEmpty()) {
-                            setSaveLoading(false)
-                            return@launch
-                        }
-
-                        val behaviors = bd.behaviorEntries()
-                        var anyChanged = false
-                        byChar.forEach { (charId, fields) ->
-                            // Skip entities deleted since the editor rendered
-                            // (stale fieldValues must not PATCH a 404).
-                            if (!behaviors.containsKey(charId)) return@forEach
-                            val entry = behaviors[charId]
-                            // Diff vs canonical entry: plain fields compare as
-                            // text; quirks/reactions compare after round-tripping
-                            // the stored JSON through the same line-based text
-                            // the editor renders. An untouched card (the text
-                            // equals the rendered form of the stored data) never
-                            // PATCHes — future per-reaction keys written by other
-                            // tools survive.
-                            val changed = mutableMapOf<String, Any?>()
-                            fields.forEach { (k, v) ->
-                                when (k) {
-                                    "baseline" -> if (v != (entry?.baseline ?: "")) changed[k] = v
-                                    "quirks" -> if (v != behaviorQuirksToText(entry?.quirks)) {
-                                        changed[k] = v.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
-                                    }
-                                    "reactions" -> if (v != behaviorReactionsToText(entry?.reactions)) {
-                                        changed[k] = behaviorReactionsFromText(v)
-                                    }
-                                }
-                            }
-                            if (changed.isEmpty()) return@forEach
-                            anyChanged = true
-                            viewModel.repository.patchBehavior(bookId, charId, changed)
-                        }
-
-                        if (!anyChanged) {
-                            setSaveLoading(false)
-                            return@launch
-                        }
-
-                        bookData = runCatching { viewModel.repository.getBook(bookId) }.getOrNull()
-                        chapters = bookData?.chapters ?: emptyList()
-                        viewModel.markUnsavedChanges()
-                        setSaveLoading(false)
-                        errorText?.visibility = View.GONE
-                    } catch (e: Exception) {
-                        Log.e("EditFragment", "behaviors save failed", e)
-                        showSaveError("${e::class.simpleName}: ${e.message ?: "unknown"}")
-                    }
-                }
+            // Heroes tab — the hero card saves itself (one PATCH per hero with
+            // if_rev, HeroCardController.save); the editor button has nothing to send.
+            if (selectedTab == HEROES_TAB) {
+                setSaveLoading(false)
                 return
             }
 
@@ -3185,15 +2886,13 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
                     //   - participants string → array
                     //   - empty string → null
                     // Exclude chapter_title from fields (sent separately below).
-                    // Characters/Voices/Behaviors are saved through their dedicated
-                    // PATCH endpoints (tabs 5/6/8 above) — char.* / voice.* /
-                    // behavior.* keys must NOT reach the scene PATCH here: setDeep
-                    // would write them into the unit/scene object as junk keys that
-                    // never persist to characters.json / voices.json / behavior.json.
+                    // VBook 4: heroes are saved by the hero card; the scene's one-off
+                    // look patch goes in its own scene-level PATCH below. Nothing
+                    // hero-shaped and no passport.* ever reaches this body.
                     val sendFields = fieldValues
                         .filterKeys {
-                            it != "chapter_title" && !it.startsWith("char.") &&
-                                !it.startsWith("voice.") && !it.startsWith("behavior.")
+                            it != "chapter_title" && !it.startsWith("char.") && !it.startsWith("voice.") &&
+                                !it.startsWith("behavior.") && !it.startsWith("passport.") && !it.startsWith("look_patch.")
                         }
                     patchBody["fields"] = sendFields
 
@@ -3207,11 +2906,11 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
 
                     viewModel.repository.patchScene(bookId, chapterId, sceneId, patchBody)
 
-                    // Scene character passport overrides are SCENE-level data. Because
+                    // The one-off look patch is SCENE-level data (VBOOK_FORMAT_V4.md §4a.4):
                     // the main PATCH above carries unit_id (which routes ALL fields to
-                    // the unit), the passport.* keys must go out in a separate PATCH
-                    // WITHOUT unit_id — the server then applies them to the scene itself.
-                    val passportFields = buildPassportOverrideFields(sc)
+                    // the unit), so look_patch.<hero>.<field> goes out in a separate
+                    // PATCH WITHOUT unit_id. passport.* of a scene is gone (400 legacy_field).
+                    val passportFields = buildLookPatchFields(sc)
                     if (passportFields.isNotEmpty()) {
                         viewModel.repository.patchScene(bookId, chapterId, sceneId, mapOf("fields" to passportFields))
                     }
@@ -3265,6 +2964,8 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     }
 
     override fun onDestroyView() {
+        heroCard?.dismiss()
+        heroCard = null
         stopPlayback()
         playbackJob?.cancel()
         mediaPlayer?.release()
