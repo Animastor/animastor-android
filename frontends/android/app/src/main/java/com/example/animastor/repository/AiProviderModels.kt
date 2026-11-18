@@ -27,7 +27,11 @@ data class AiProviderMeta(
     /** Epoch SECONDS (PG BIGINT), not ms. */
     val last_tested_at: Long? = null,
     val created_at: Long? = null,
-    val updated_at: Long? = null
+    val updated_at: Long? = null,
+    /** Reasoning settings (GAP RSN-1): applied to every request of the provider. */
+    val disable_thinking: Boolean? = null,
+    /** null = not sent | none | minimal | low | medium | high */
+    val reasoning_effort: String? = null
 )
 
 data class AiProviderRead(

@@ -2035,7 +2035,10 @@ class GenerateViewModel(
                 val stageMsg = vbookProgress.message?.takeIf { it.isNotBlank() }
                 // Localize by machine stage id first (follows the UI language); fall
                 // back to the backend's Russian progress message, then the generic label.
-                val label = labels.vbookStageLabel(vbookProgress.stepType, vbookProgress.sceneIndex)
+                val label = if (ReasoningSettings.isReasoningBudgetError(stageMsg)) {
+                    // reasoning_budget_exhausted — plain words; who fixes it follows the provider (step 6).
+                    labels.reasoningBudget(ReasoningSettings.budgetProvider(stageMsg)).ifEmpty { stageMsg!! }
+                } else labels.vbookStageLabel(vbookProgress.stepType, vbookProgress.sceneIndex)
                     ?: stageMsg ?: labels.vbookLabel
                 val ready: Int; val totalVBook: Int; val pctVBook: Int; val countText: String; val indeterminate: Boolean
                 val vbookElapsed: Long = if (timerStartedAt > 0L) (now - timerStartedAt) / 1000L else 0L
@@ -2216,7 +2219,9 @@ data class TaskLabels(
      * @param stepType wire stage id (may be null)
      * @param sceneIndex 0-based window-relative scene index (VBookProgress.sceneIndex)
      */
-    val vbookStageLabel: (stepType: String?, sceneIndex: Int) -> String?
+    val vbookStageLabel: (stepType: String?, sceneIndex: Int) -> String?,
+    /** reasoning_budget_exhausted in plain words for the provider ("system" | "personal" | null). */
+    val reasoningBudget: (provider: String?) -> String = { "" }
 )
 
 // ── UI State (generation only) ───────────────────────────────────

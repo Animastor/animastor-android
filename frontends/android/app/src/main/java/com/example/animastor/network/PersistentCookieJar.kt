@@ -10,8 +10,12 @@ import org.json.JSONObject
 
 /**
  * Persistent cookie jar (web parity). The backend is cookie-authenticated:
- * it sets an HttpOnly `animastor_sid` session cookie on login/register and a
- * `animastor_gid` guest cookie on first write. OkHttp does not persist cookies
+ * it sets an HttpOnly `animastor_sid` session cookie on login/register.
+ * VBook v4 step 5 (owner, 18.11): the backend no longer mints guests — an
+ * anonymous write is 401 login_required and the app opens the sign-in
+ * window. The old `animastor_gid` guest cookie is dropped from the store on
+ * start and never stored or sent again ([withoutGuestCookie], step 6 п.17).
+ * OkHttp does not persist cookies
  * across process restarts by default, so without this jar the app would lose
  * the session every cold start and silently behave as a guest.
  *
@@ -22,6 +26,7 @@ import org.json.JSONObject
 class PersistentCookieJar(private val prefs: SharedPreferences) : CookieJar {
 
     private val cache = mutableMapOf<String, MutableList<Cookie>>()
+    private var droppedGuest = false
 
     init {
         // Hydrate from disk once.
@@ -37,18 +42,21 @@ class PersistentCookieJar(private val prefs: SharedPreferences) : CookieJar {
                     val url = HttpUrl.Builder().scheme("https").host(host).build()
                     Cookie.parse(url, cookieStr)?.let(list::add)
                 }
-                if (list.isNotEmpty()) cache[host] = list
+                val kept = withoutGuestCookie(list)
+                if (kept.size != list.size) droppedGuest = true
+                if (kept.isNotEmpty()) cache[host] = kept.toMutableList()
             }
         } catch (_: Exception) {
             // Corrupt store → start clean.
         }
+        if (droppedGuest) persist()
     }
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
         val host = url.host
         val list = cache.getOrPut(host) { mutableListOf() }
         // Replace same-name cookies (session refresh) rather than appending.
-        cookies.forEach { incoming ->
+        withoutGuestCookie(cookies).forEach { incoming ->
             list.removeAll { it.name == incoming.name }
             list.add(incoming)
         }
@@ -61,7 +69,7 @@ class PersistentCookieJar(private val prefs: SharedPreferences) : CookieJar {
         val list = cache[url.host] ?: return emptyList()
         // Expired entries should not be sent.
         val now = System.currentTimeMillis()
-        return list.filter { it.expiresAt > now }
+        return withoutGuestCookie(list.filter { it.expiresAt > now })
     }
 
     private fun persist() {
@@ -86,5 +94,11 @@ class PersistentCookieJar(private val prefs: SharedPreferences) : CookieJar {
 
     companion object {
         private const val KEY_COOKIES = "animastor_cookies"
+
+        /** The guest cookie of the pre-v4 backend (step 5: no guests any more). */
+        const val GUEST_COOKIE = "animastor_gid"
+
+        /** Every cookie except the old guest one — never stored, never sent. */
+        fun withoutGuestCookie(cookies: List<Cookie>): List<Cookie> = cookies.filter { it.name != GUEST_COOKIE }
     }
 }
