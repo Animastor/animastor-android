@@ -8,8 +8,14 @@ package com.example.animastor.repository
 data class AuthUser(
     val id: String? = null,
     val username: String? = null,
-    val display_name: String? = null
-)
+    val display_name: String? = null,
+    val role: String? = null,
+    /** Platform admin (role OR the backend ADMIN_USERNAMES allowlist), VBook v4 step 6. */
+    val is_admin: Boolean? = null
+) {
+    /** The backend's is_admin; role = admin for an older backend (web isAdminUser). */
+    fun isAdmin(): Boolean = is_admin == true || role == "admin"
+}
 
 data class AuthWorkspace(
     val id: String? = null,
