@@ -366,7 +366,9 @@
     <string name="field_weather">weather</string>
     <string name="field_mood">mood</string>
     <string name="field_atmosphere">atmosphere</string>
-    <string name="field_instruction">instruction</string>
+    <string name="field_timbre">timbre</string>
+    <string name="field_manner">manner</string>
+    <string name="voice_ref_cleaned_hint">The timbre was cleaned of situational phrases automatically — check and edit it. Voice references (create / lock) are in the web editor for now.</string>
     <string name="field_baseline">baseline behavior</string>
     <string name="field_quirks">quirks (one per line)</string>
     <string name="field_reactions">reactions (trigger → reaction, one per line)</string>

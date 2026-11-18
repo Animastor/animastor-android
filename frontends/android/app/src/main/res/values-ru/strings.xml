@@ -125,7 +125,9 @@
     <string name="field_weather">погода</string>
     <string name="field_mood">настроение</string>
     <string name="field_atmosphere">атмосфера</string>
-    <string name="field_instruction">инструкция</string>
+    <string name="field_timbre">тембр</string>
+    <string name="field_manner">подача</string>
+    <string name="voice_ref_cleaned_hint">Тембр очищен автоматически от ситуативных фраз — проверьте и поправьте. Референсы голосов (создание / закрепление) пока — в веб-редакторе.</string>
     <string name="field_baseline">базовое поведение</string>
     <string name="field_quirks">привычки (по одной на строку)</string>
     <string name="field_reactions">реакции (триггер → реакция, по одной на строку)</string>
