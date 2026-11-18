@@ -14,6 +14,9 @@ class Repository(
     private val api: BackendApi,
     diskCache: SimpleDiskCache? = null
 ) {
+    /** VBook 4 hero API (repository/HeroApi.kt) — the hero card and the scene look selector. */
+    val heroes: HeroRepository by lazy { HeroRepository(com.example.animastor.network.RetrofitClient.heroApi) }
+
     private val cache = LruCache<String, ByteArray>(50 * 1024 * 1024)
     private val storyboardCache = LruCache<String, StoryboardResponse>(500)
     private val chunkCache = LruCache<String, ChunkResponse>(500)
@@ -231,40 +234,10 @@ class Repository(
         notifyBookChanged(bookId)
     }
 
-    suspend fun patchCharacter(bookId: String, characterId: String, fields: Map<String, @JvmSuppressWildcards Any?>) {
-        Log.d("Repo", "patchCharacter: $bookId/$characterId keys=${fields.keys}")
-        api.patchCharacter(bookId, characterId, mapOf("fields" to fields))
-        notifyBookChanged(bookId)
-    }
-
-    suspend fun patchVoice(bookId: String, voiceId: String, fields: Map<String, @JvmSuppressWildcards Any?>) {
-        Log.d("Repo", "patchVoice: $bookId/$voiceId keys=${fields.keys}")
-        api.patchVoice(bookId, voiceId, mapOf("fields" to fields))
-        notifyBookChanged(bookId)
-    }
-
-    suspend fun patchBehavior(bookId: String, characterId: String, fields: Map<String, @JvmSuppressWildcards Any?>) {
-        Log.d("Repo", "patchBehavior: $bookId/$characterId keys=${fields.keys}")
-        api.patchBehavior(bookId, characterId, mapOf("fields" to fields))
-        notifyBookChanged(bookId)
-    }
-
     // ── Manual entity add/delete (Editor tables) ──
     // POST/DELETE through the dedicated endpoints; the id stays free-form — the
     // server transliterates non-canonical input (reusing its cyrToLatin util),
     // so the clients never duplicate the algorithm.
-
-    suspend fun createCharacter(bookId: String, body: Map<String, @JvmSuppressWildcards Any?>) {
-        Log.d("Repo", "createCharacter: $bookId body=${body.keys}")
-        api.createCharacter(bookId, body)
-        notifyBookChanged(bookId)
-    }
-
-    suspend fun deleteCharacter(bookId: String, characterId: String) {
-        Log.i("Repo", "deleteCharacter: $bookId/$characterId")
-        api.deleteCharacter(bookId, characterId)
-        notifyBookChanged(bookId)
-    }
 
     suspend fun createLocation(bookId: String, body: Map<String, @JvmSuppressWildcards Any?>) {
         Log.d("Repo", "createLocation: $bookId body=${body.keys}")
@@ -275,32 +248,6 @@ class Repository(
     suspend fun deleteLocation(bookId: String, locationId: String) {
         Log.i("Repo", "deleteLocation: $bookId/$locationId")
         api.deleteLocation(bookId, locationId)
-        notifyBookChanged(bookId)
-    }
-
-    suspend fun createVoice(bookId: String, body: Map<String, @JvmSuppressWildcards Any?>) {
-        Log.d("Repo", "createVoice: $bookId body=${body.keys}")
-        api.createVoice(bookId, body)
-        notifyBookChanged(bookId)
-    }
-
-    suspend fun deleteVoice(bookId: String, voiceId: String) {
-        Log.i("Repo", "deleteVoice: $bookId/$voiceId")
-        api.deleteVoice(bookId, voiceId)
-        notifyBookChanged(bookId)
-    }
-
-    // ── Behavior (behavior.json — keyed by the existing character_id) ──
-
-    suspend fun createBehavior(bookId: String, body: Map<String, @JvmSuppressWildcards Any?>) {
-        Log.d("Repo", "createBehavior: $bookId body=${body.keys}")
-        api.createBehavior(bookId, body)
-        notifyBookChanged(bookId)
-    }
-
-    suspend fun deleteBehavior(bookId: String, characterId: String) {
-        Log.i("Repo", "deleteBehavior: $bookId/$characterId")
-        api.deleteBehavior(bookId, characterId)
         notifyBookChanged(bookId)
     }
 
@@ -561,7 +508,7 @@ class Repository(
      * point of truth. The AI Assistant's own mutations arrive as the chat
      * response and are emitted by the caller as EXTERNAL.
      */
-    private fun notifyBookChanged(bookId: String) {
+    fun notifyBookChanged(bookId: String) {
         if (bookId.isBlank()) return
         ResourceInvalidations.emitLocal(ResourceInvalidations.Keys.book(bookId))
     }

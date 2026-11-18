@@ -13,25 +13,51 @@ data class BookData(
     val manifest: Manifest? = null,
     val book: BookMeta? = null,
     val bible: Bible? = null,
-    val characters: List<CharDef>? = null,
     val chapters: List<Chapter>? = null,
     val locations: Map<String, Location>? = null,
-    val voices: Map<String, VoiceEntry>? = null,
-    // Per-character behavior — the API's flat character map (projection of
-    // behavior.json schema v2), kept raw so service keys can never break the
-    // book parse; read it ONLY through [behaviorEntries].
-    val behaviors: JsonElement? = null,
-    // Read-only behaviour rules (behavior.json v2 `rules`); no UI in phase 0.
-    val behavior_rules: JsonElement? = null,
+    // VBook 4 heroes (VBOOK_FORMAT_V4.md §8.2, HERO_CARD.md): one hero = one
+    // object, the narrator included. Kept raw and parsed entry by entry
+    // (HeroModel.orderHeroes / parseIssues) — one odd entry never breaks the
+    // book parse. The 3.1 maps characters / voices / behaviors are gone.
+    val heroes: JsonElement? = null,
+    val hero_issues: JsonElement? = null,
+    /** behaviour.json — the global rules (schema animastor.behaviour-globals/1). */
+    val behaviour: JsonElement? = null,
     // Flat scene list in book order, computed server-side (thin-client contract).
     // Clients build playback queues and navigation from this list instead of
     // re-implementing chapter→scene traversal. Cover is the first entry with
     // type == "cover". Null/empty on legacy servers → fall back to chapters.
     val scene_list: List<SceneListEntry>? = null
 ) {
-    /** Character behavior entries (service keys filtered, see [BehaviorEntries]). */
-    fun behaviorEntries(): Map<String, BehaviorEntry> = BehaviorEntries.characterEntries(behaviors)
+    /** Heroes in display order: the narrator first (HeroModel.orderHeroes). */
+    fun heroList(): List<Hero> = HeroModel.orderHeroes(heroes)
+
+    fun heroIssues(): List<HeroIssue> = HeroModel.parseIssues(hero_issues)
+
+    fun behaviourGlobals(): BehaviourGlobals? = behaviour?.takeIf { it.isJsonObject }?.let {
+        runCatching { com.google.gson.Gson().fromJson(it, BehaviourGlobals::class.java) }.getOrNull()
+    }
+
+    /** Chapters as the look resolver reads them (looks, scenes with participants / looks / look_patch). */
+    fun lookChapters(): List<LookChapter> = (chapters ?: emptyList()).map { it.toLookChapter() }
 }
+
+fun Chapter.toLookChapter(): LookChapter = LookChapter(
+    chapter_id = chapter_id,
+    chapter_title = chapter_title,
+    display_number = display_number,
+    looks = looks,
+    scenes = (scenes ?: emptyList()).map { it.toLookScene() },
+)
+
+fun Scene.toLookScene(): LookScene = LookScene(
+    scene_id = scene_id,
+    scene_title = scene_title,
+    display_index = display_index,
+    participants = participants,
+    looks = looks,
+    look_patch = look_patch,
+)
 
 /**
  * Flat scene reference in book order, provided by the backend (GET /book).
@@ -156,74 +182,6 @@ data class RenderRules(
     val spatial_consistency: Boolean? = null
 )
 
-data class CharDef(
-    val id: String? = null,
-    val name: String? = null,
-    val passport: CharPassport? = null
-)
-
-data class CharPassport(
-    val appearance: String? = null,
-    val clothes: String? = null,
-    // video_tokens may be a legacy string OR an array of 1-4 short visual
-    // features (agent-driven scheme) — Gson deserializes the array to a List.
-    val video_tokens: Any? = null
-)
-
-/** Render video_tokens (string | array of features) as editable text. */
-fun CharPassport.videoTokensAsText(): String = when (val t = video_tokens) {
-    is String -> t
-    is List<*> -> t.filterIsInstance<String>().joinToString(", ")
-    else -> ""
-}
-
-/**
- * Character voice (animastor-docs architecture/VOICE_REFERENCES.md):
- * constant timbre + manner; `reference` links the locked voice reference
- * (the audio lives in the content folder build_<id>/voices/, never in the book).
- */
-data class VoiceEntry(
-    val timbre: String? = null,
-    val manner: String? = null,
-    val timbre_source: String? = null,
-    val reference: VoiceReferenceLink? = null
-)
-
-data class VoiceReferenceLink(
-    val file: String? = null,
-    val ref_text: String? = null,
-    val source: String? = null,
-    val sha256: String? = null,
-    val verification: String? = null,
-    val locked: Boolean? = null,
-    val candidate_id: String? = null
-)
-
-/**
- * Per-character behavior entry — keyed by character_id (same pattern as
- * voices); the server stores it under behavior.json v2 `characters`.
- * Character Behavior contract:
- *   baseline    — how the character behaves normally
- *   quirks      — recurring habits, one entry each
- *   reactions   — trigger → reaction patterns ([BehaviorReaction])
- * The stored object is schema-tolerant: unknown future keys are preserved
- * server-side; this model reads/writes only the known fields (Gson ignores
- * extras, PATCH sends only edited fields). Deliberately deferred:
- * frequency/intensity, priority, extraction from book text, runtime
- * interpretation.
- */
-data class BehaviorEntry(
-    val baseline: String? = null,
-    val quirks: List<String>? = null,
-    val reactions: List<BehaviorReaction>? = null
-)
-
-/** One trigger → reaction pattern of [BehaviorEntry.reactions]. */
-data class BehaviorReaction(
-    val trigger: String? = null,
-    val reaction: String? = null
-)
-
 data class Chapter(
     val chapter_id: String? = null,
     val chapter_title: String? = null,
@@ -234,7 +192,9 @@ data class Chapter(
     /** Server-computed display number (1-based, excludes cover/prologue). */
     val display_number: Int? = null,
     /** Server-decided: cover/prologue chapters are labelled by type, not "Chapter N". */
-    val is_special: Boolean = false
+    val is_special: Boolean = false,
+    /** Look of a hero for the whole chapter: hero id → look id (VBOOK_FORMAT_V4.md §4a). */
+    val looks: Map<String, String>? = null
 )
 
 data class ChapterIntro(
@@ -250,9 +210,10 @@ data class Scene(
     val style: String? = null,
     val location: LocationData? = null,
     val participants: List<String>? = null,
-    /** Per-scene character passport overrides — keyed by character id.
-     *  Each entry replaces the global passport field per-field for this scene. */
-    val passport: Map<String, CharPassport>? = null,
+    /** Look of a hero in this scene: hero id → look id or "base" (wins over the chapter). */
+    val looks: Map<String, String>? = null,
+    /** One-off patch of a hero's look in this scene (VBook 4; `passport.*` of a scene is gone). */
+    val look_patch: Map<String, LookPatch?>? = null,
     val audio: AudioConfig? = null,
     val units: List<SceneUnit>? = null,
     /** Server-computed display index (1-based within chapter). */

@@ -147,40 +147,7 @@ interface BackendApi {
         @Body body: Map<String, @JvmSuppressWildcards Any?>
     ): GenericResponse
 
-    @PATCH("/api/v1/book/{bookId}/characters/{characterId}")
-    suspend fun patchCharacter(
-        @Path("bookId") bookId: String,
-        @Path("characterId") characterId: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any?>
-    ): GenericResponse
-
-    @PATCH("/api/v1/book/{bookId}/voices/{voiceId}")
-    suspend fun patchVoice(
-        @Path("bookId") bookId: String,
-        @Path("voiceId") voiceId: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any?>
-    ): GenericResponse
-
-    @PATCH("/api/v1/book/{bookId}/behaviors/{characterId}")
-    suspend fun patchBehavior(
-        @Path("bookId") bookId: String,
-        @Path("characterId") characterId: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any?>
-    ): GenericResponse
-
-    // ── Manual entity add/delete (Editor tables — characters/locations/voices) ──
-
-    @POST("/api/v1/book/{bookId}/characters")
-    suspend fun createCharacter(
-        @Path("bookId") bookId: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any?>
-    ): GenericResponse
-
-    @HTTP(method = "DELETE", path = "/api/v1/book/{bookId}/characters/{characterId}", hasBody = false)
-    suspend fun deleteCharacter(
-        @Path("bookId") bookId: String,
-        @Path("characterId") characterId: String
-    ): GenericResponse
+    // ── Manual entity add/delete (Editor — locations; heroes: HeroApi.kt) ──
 
     @POST("/api/v1/book/{bookId}/locations")
     suspend fun createLocation(
@@ -192,32 +159,6 @@ interface BackendApi {
     suspend fun deleteLocation(
         @Path("bookId") bookId: String,
         @Path("locationId") locationId: String
-    ): GenericResponse
-
-    @POST("/api/v1/book/{bookId}/voices")
-    suspend fun createVoice(
-        @Path("bookId") bookId: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any?>
-    ): GenericResponse
-
-    @HTTP(method = "DELETE", path = "/api/v1/book/{bookId}/voices/{voiceId}", hasBody = false)
-    suspend fun deleteVoice(
-        @Path("bookId") bookId: String,
-        @Path("voiceId") voiceId: String
-    ): GenericResponse
-
-    // ── Behavior (behavior.json — keyed by the existing character_id) ──
-
-    @POST("/api/v1/book/{bookId}/behaviors")
-    suspend fun createBehavior(
-        @Path("bookId") bookId: String,
-        @Body body: Map<String, @JvmSuppressWildcards Any?>
-    ): GenericResponse
-
-    @HTTP(method = "DELETE", path = "/api/v1/book/{bookId}/behaviors/{characterId}", hasBody = false)
-    suspend fun deleteBehavior(
-        @Path("bookId") bookId: String,
-        @Path("characterId") characterId: String
     ): GenericResponse
 
     // ── Structure add/delete (Editor — chapters/scenes/units) ──
@@ -649,6 +590,13 @@ interface BackendApi {
 
     @HTTP(method = "DELETE", path = "/api/v1/settings/ai/provider", hasBody = false)
     suspend fun deleteAiProvider(): AiProviderDeleteResponse
+
+    /** The same PUT with a body that keeps nulls (`reasoning_effort: null` = «do not send»). */
+    @PUT("/api/v1/settings/ai/provider")
+    suspend fun putAiProviderRaw(@Body body: okhttp3.RequestBody): AiProviderUpsertResponse
+
+    @POST("/api/v1/settings/ai/test")
+    suspend fun testAiProviderRaw(@Body body: okhttp3.RequestBody): AiProviderTestResponse
 
     @POST("/api/v1/settings/ai/test")
     suspend fun testAiProvider(
