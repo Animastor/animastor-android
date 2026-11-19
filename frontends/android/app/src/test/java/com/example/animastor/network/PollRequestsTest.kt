@@ -31,6 +31,9 @@ class PollRequestsTest {
         "/generate/commands/abc",
         "/generate",
         "/api/v1/book/ba_1/progress-panel",
+        // VBook v4 hero card: the candidate list is re-read every 3 s while a command runs
+        "/book/ba_1/heroes/yura/voice/candidates",
+        "/api/v1/book/ba_1/heroes/yura/voice/candidates",
     )
     private val cacheablePaths = listOf(
         "/book/ba_1",
@@ -41,6 +44,8 @@ class PollRequestsTest {
         "/connectors/x/status-page",
         "/worker/counts-history",
         "/generated/x",
+        "/book/ba_1/heroes/yura",
+        "/book/ba_1/heroes/yura/voice/candidatesx",
     )
 
     @Test

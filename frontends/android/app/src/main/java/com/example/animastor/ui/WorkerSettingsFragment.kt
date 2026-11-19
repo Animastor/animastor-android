@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.animastor.R
 import com.example.animastor.databinding.FragmentWorkerSettingsBinding
 import com.example.animastor.network.RetrofitClient
+import com.example.animastor.repository.AuthStore
 import com.example.animastor.repository.LayerConfigUpdate
 import com.example.animastor.repository.UpdateProfileRequest
 import com.example.animastor.repository.WorkerCounts
@@ -275,9 +276,14 @@ class WorkerSettingsFragment : Fragment(R.layout.fragment_worker_settings) {
         // flips only AFTER the load settles so opening the screen never writes
         // the just-loaded value back.
         var profileInitialized = false
+        // The profile is the ONE global override (PUT /connectors/profiles is
+        // platform-admin only since VBook v4 step 6): others see it read-only.
+        val canEditProfile = AuthStore.state.value.user?.isAdmin() == true
+        b.profileSpinner.isEnabled = canEditProfile
+        b.profileHint.text = getString(if (canEditProfile) R.string.settings_profiles_saved_and_applied else R.string.connector_profile_admin_only)
         b.profileSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, v: View?, position: Int, id: Long) {
-                if (!profileInitialized) return
+                if (!profileInitialized || !canEditProfile) return
                 val selected = parent?.getItemAtPosition(position)?.toString() ?: return
                 lifecycleScope.launch {
                     try {

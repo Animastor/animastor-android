@@ -1,5 +1,7 @@
 package com.example.animastor.ui
 
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
@@ -51,6 +53,8 @@ class AiProviderSettingsFragment : Fragment(R.layout.fragment_ai_provider_settin
         b.toolbar.setNavigationOnClickListener {
             parentFragmentManager.popBackStack()
         }
+
+        setUpReasoning()
 
         // ── Provider type spinner (openrouter | openai-compatible | custom) ──
         val typeOptions = BetaSettingsHelpers.VALID_PROVIDER_TYPES
@@ -122,6 +126,7 @@ class AiProviderSettingsFragment : Fragment(R.layout.fragment_ai_provider_settin
                         b.providerTypeSpinner.setSelection(typeIdx)
                         b.endpointInput.setText(meta.endpoint ?: "")
                         b.modelInput.setText(meta.model ?: "")
+                        applyReasoning(ReasoningSettings.fromMeta(meta.disable_thinking, meta.reasoning_effort))
                     }
                     renderSavedState()
                 }
@@ -131,6 +136,31 @@ class AiProviderSettingsFragment : Fragment(R.layout.fragment_ai_provider_settin
                 typeInitialized = true // load settled — type changes now apply
             }
         }
+    }
+
+    /** Reasoning controls (GAP RSN-1): «do not send» + the five efforts. */
+    private fun setUpReasoning() {
+        val b = binding ?: return
+        val labels = listOf(getString(R.string.reasoning_effort_default)) + ReasoningSettings.REASONING_EFFORTS
+        b.reasoningEffortSpinner.adapter = android.widget.ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, labels)
+        applyReasoning(ReasoningSettings.DEFAULT)
+    }
+
+    private fun applyReasoning(v: ReasoningSettings.Value) {
+        val b = binding ?: return
+        b.reasoningDisableSwitch.isChecked = v.disableThinking
+        b.reasoningEffortSpinner.setSelection(ReasoningSettings.positionOf(v.effort))
+    }
+
+    private fun currentReasoning(): ReasoningSettings.Value {
+        val b = binding ?: return ReasoningSettings.DEFAULT
+        return ReasoningSettings.Value(b.reasoningDisableSwitch.isChecked, ReasoningSettings.effortAt(b.reasoningEffortSpinner.selectedItemPosition))
+    }
+
+    /** JSON with nulls kept — `reasoning_effort: null` means «do not send» and must reach the server. */
+    private fun jsonBody(body: Map<String, Any?>): okhttp3.RequestBody {
+        val json = com.example.animastor.repository.HeroRepository.heroGson.toJson(body)
+        return json.toRequestBody("application/json; charset=utf-8".toMediaType())
     }
 
     private fun renderSavedState() {
@@ -205,7 +235,8 @@ class AiProviderSettingsFragment : Fragment(R.layout.fragment_ai_provider_settin
                     "model" to v.model
                 )
                 if (v.apiKey != null) body["api_key"] = v.apiKey
-                val res = RetrofitClient.api.putAiProvider(body)
+                body.putAll(ReasoningSettings.body(currentReasoning()))
+                val res = RetrofitClient.api.putAiProviderRaw(jsonBody(body))
                 saved = res.provider
                 // SECURITY INVARIANT: immediately drop the API key from the
                 // input — the saved meta only carries the masked hint.
@@ -244,8 +275,10 @@ class AiProviderSettingsFragment : Fragment(R.layout.fragment_ai_provider_settin
                 if (endpoint.isNotEmpty()) body["endpoint"] = endpoint
                 if (apiKey.isNotEmpty()) body["api_key"] = apiKey
                 if (model.isNotEmpty()) body["model"] = model
+                // The settings under test: the form wins over the stored provider (backend reasoningForTest).
+                body.putAll(ReasoningSettings.body(currentReasoning()))
 
-                val res = RetrofitClient.api.testAiProvider(body)
+                val res = RetrofitClient.api.testAiProviderRaw(jsonBody(body))
                 if (res.ok) {
                     val modelPart = res.model?.let { " \u00B7 $it" } ?: ""
                     showSuccess(getString(R.string.ai_provider_test_ok) + modelPart)

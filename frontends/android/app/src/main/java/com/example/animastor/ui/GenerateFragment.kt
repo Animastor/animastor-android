@@ -2,6 +2,7 @@
 
 package com.example.animastor.ui
 
+import com.example.animastor.ui.heroes.heroStr
 import android.animation.ObjectAnimator
 import android.os.Bundle
 import android.util.Log
@@ -420,7 +421,8 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             vbookLabel = "VBook, scenes",
             vbookAnalyzing = getString(R.string.progress_vbook_analyzing),
             vbookScenesFormat = { ready, total -> getString(R.string.progress_vbook_scenes, ready, total) },
-            vbookStageLabel = { stepType, sceneIndex -> resolveVBookStageLabel(stepType, sceneIndex) }
+            vbookStageLabel = { stepType, sceneIndex -> resolveVBookStageLabel(stepType, sceneIndex) },
+            reasoningBudget = { provider -> requireContext().heroStr(ReasoningSettings.budgetTextKey(provider)) }
         )
 
         val uiState = viewModel.uiState.value
@@ -823,7 +825,24 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             }
 
             if (row.status == AnalysisStatus.FAILED && !row.error.isNullOrBlank()) {
-                rowBinding.analysisError.text = getString(R.string.progress_analysis_failed_detail, row.error)
+                // reasoning_budget_exhausted — plain words; who can fix it follows the
+                // provider (owner, step 6): personal → a tap opens the provider settings,
+                // system → «ask the administrator» (web ReasoningBudgetNotice).
+                if (ReasoningSettings.isReasoningBudgetError(row.error)) {
+                    val provider = ReasoningSettings.budgetProvider(row.error)
+                    val ctx = requireContext()
+                    val text = ctx.heroStr(ReasoningSettings.budgetTextKey(provider))
+                    if (ReasoningSettings.linksToSettings(provider)) {
+                        rowBinding.analysisError.text = "$text ${ctx.heroStr("reasoning_budget_link")} ›"
+                        rowBinding.analysisError.setOnClickListener { openAiProviderSettings() }
+                    } else {
+                        rowBinding.analysisError.text = text
+                        rowBinding.analysisError.setOnClickListener(null)
+                    }
+                } else {
+                    rowBinding.analysisError.text = getString(R.string.progress_analysis_failed_detail, row.error)
+                    rowBinding.analysisError.setOnClickListener(null)
+                }
                 rowBinding.analysisError.setTextColor(errorColor)
                 rowBinding.analysisError.visibility = View.VISIBLE
             } else {
@@ -1481,6 +1500,14 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         // О1 (web: visibilitychange → visible / pageshow): back on screen →
         // re-poll the progress panel immediately, not on the next tick.
         viewModel.requestPanelRefresh()
+    }
+
+    /** The personal AI provider settings (reasoning_budget_exhausted of a personal provider). */
+    private fun openAiProviderSettings() {
+        activity?.supportFragmentManager?.beginTransaction()
+            ?.add(R.id.nav_host_container, AiProviderSettingsFragment(), "AiProviderSettingsFragment")
+            ?.addToBackStack(null)
+            ?.commit()
     }
 
     override fun onDestroyView() {

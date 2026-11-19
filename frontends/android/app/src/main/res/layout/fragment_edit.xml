@@ -395,20 +395,11 @@
                     android:layout_height="wrap_content"
                     android:text="@string/edit_units_tab" />
 
+                <!-- VBook 4: «Герои» replaces «Персонажи» / «Голоса» / «Поведение» (HERO_CARD.md) -->
                 <com.google.android.material.tabs.TabItem
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/edit_characters_tab" />
-
-                <com.google.android.material.tabs.TabItem
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/edit_voices_tab" />
-
-                <com.google.android.material.tabs.TabItem
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/edit_behavior_tab" />
+                    android:text="@string/edit_heroes_tab" />
 
                 <com.google.android.material.tabs.TabItem
                     android:layout_width="wrap_content"

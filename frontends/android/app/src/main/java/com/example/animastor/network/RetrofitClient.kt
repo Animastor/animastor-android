@@ -77,5 +77,10 @@ object RetrofitClient {
         retrofit.create(BackendApi::class.java)
     }
 
+    /** VBook v4 hero API (raw responses, null-keeping bodies — repository/HeroApi.kt). */
+    val heroApi: com.example.animastor.repository.HeroApi by lazy {
+        retrofit.create(com.example.animastor.repository.HeroApi::class.java)
+    }
+
     val baseUrl: String get() = BuildConfig.BASE_URL
 }

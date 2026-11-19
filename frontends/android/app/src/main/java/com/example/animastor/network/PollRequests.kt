@@ -25,6 +25,8 @@ object PollRequests {
         Regex("""^/scene/[^/?]+/[^/?]+/[^/?]+/status(?:[/?]|$)"""),
         Regex("""^/worker/counts(?:[/?]|$)"""),
         Regex("""^/generate(?:[/?]|$)"""),
+        // The hero card re-reads the voice candidate list every 3 s while a command runs (VBook v4, HERO_CARD.md §6).
+        Regex("""^/book/[^/?]+/heroes/[^/?]+/voice/candidates(?:[/?]|$)"""),
     )
 
     /** `true` when a GET of [path] (endpoint path, with or without the `/api/v1` prefix) must bypass any HTTP cache. */
