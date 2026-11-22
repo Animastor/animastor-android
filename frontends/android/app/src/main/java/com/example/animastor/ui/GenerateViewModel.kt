@@ -202,6 +202,106 @@ class GenerateViewModel(
         data class NavigateToEdit(val reason: String = "") : NavigationEvent()
     }
 
+    // ── «Мои книги» (2026-11-22) ──────────────────────────────────────
+
+    /** A VBook 3.1 book the user tried to open (GET /book → 409 unsupported_vbook_version). */
+    data class UnsupportedOpen(val bookId: String, val version: String, val supported: Int)
+
+    /** Where «Открыть» of the Library leads (web openFromLibrary parity). */
+    sealed class OpenResult {
+        object Play : OpenResult()
+        object Generate : OpenResult()
+        data class Unsupported(val info: UnsupportedOpen) : OpenResult()
+        data class Failed(val message: String) : OpenResult()
+    }
+
+    private val _unsupportedBook = MutableStateFlow<UnsupportedOpen?>(null)
+    /** The File screen shows it with «Удалить книгу» (the one action left, VBOOK_FORMAT_V4 §9). */
+    val unsupportedBook: StateFlow<UnsupportedOpen?> = _unsupportedBook.asStateFlow()
+
+    fun clearUnsupportedBook(bookId: String? = null) {
+        if (bookId == null || _unsupportedBook.value?.bookId == bookId) _unsupportedBook.value = null
+    }
+
+    /** «Книга открыта» on the server — fire-and-forget, never blocks opening. */
+    private fun markOpened(bookId: String) {
+        viewModelScope.launch { _repository.markBookOpened(bookId) }
+    }
+
+    private fun unsupportedOf(bookId: String, e: Throwable): UnsupportedOpen? {
+        val http = e as? retrofit2.HttpException ?: return null
+        if (http.code() != 409) return null
+        val body = runCatching {
+            com.google.gson.JsonParser.parseString(http.response()?.errorBody()?.string() ?: "").asJsonObject
+        }.getOrNull()
+        val info = com.example.animastor.repository.HeroModel.unsupportedVbook(body) ?: return null
+        return UnsupportedOpen(bookId, info.version, info.supported)
+    }
+
+    /**
+     * «Открыть» of the Library: the book by id, the same warm-up as the
+     * import path (position, cover, playbackPrepared), «книга открыта» on the
+     * server, then where to go — Play when the book has media, else Generate.
+     * A VBook 3.1 book: [OpenResult.Unsupported] + [unsupportedBook] (the
+     * previous book stays open).
+     */
+    suspend fun openBookById(id: String): OpenResult {
+        Log.i(TAG, "openBookById: $id")
+        resetProgressState()
+        clearVBookProgress()
+        vbookPollToken++
+        generationJob?.cancel()
+        generationJob = null
+        stopTimer()
+        _isRegenerating.value = false
+        _unsupportedBook.value = null
+        _uiState.update { it.copy(phase = PlayerPhase.LOADING_BOOK, errorMessage = null) }
+
+        val bookData = try {
+            _repository.getBook(id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val legacy = unsupportedOf(id, e)
+            if (legacy != null) {
+                _unsupportedBook.value = legacy
+                _uiState.update { it.copy(phase = PlayerPhase.IDLE, errorMessage = null) }
+                return OpenResult.Unsupported(legacy)
+            }
+            val msg = e.message ?: "Book not found"
+            _uiState.update { it.copy(phase = PlayerPhase.IDLE, errorMessage = msg) }
+            return OpenResult.Failed(msg)
+        }
+
+        hasUnsavedChanges = false
+        _dirtySummary.value = null
+        _dirtyScenes.value = emptyList()
+        persistBookId(id)
+        persistBuildId(bookData.manifest?.build_id ?: "")
+        markOpened(id)
+
+        val scenes = bookData.sceneRefs()
+        val coverScene = scenes.firstOrNull { it.sceneType == "cover" }
+        val first = coverScene ?: scenes.firstOrNull()
+        if (first != null) {
+            SharedPositionManager.navigateTo(chapterId = first.chapterId, sceneId = first.sceneId, unitIndex = 0)
+        } else {
+            SharedPositionManager.navigateTo(chapterId = null, sceneId = null)
+        }
+        val cover = if (coverScene != null && imageEnabled) loadCoverBitmap(coverScene.chapterId, coverScene.sceneId) else null
+        _playbackPrepared.tryEmit(PlaybackPreparation(bookId = id, buildId = buildId, scenes = scenes, coverImage = cover))
+        _uiState.update {
+            it.copy(
+                phase = if (scenes.isNotEmpty()) PlayerPhase.SCENE_READY else PlayerPhase.IDLE,
+                previewImage = null,
+                coverImage = cover,
+                errorMessage = null
+            )
+        }
+        val assets = runCatching { _repository.getAssetsState(id) }.getOrNull()
+        return if (scenes.isNotEmpty() && assets?.has_assets == true) OpenResult.Play else OpenResult.Generate
+    }
+
     private val _navigationEvent = MutableSharedFlow<NavigationEvent>(extraBufferCapacity = 4)
     val navigationEvent: SharedFlow<NavigationEvent> = _navigationEvent.asSharedFlow()
 
@@ -980,6 +1080,8 @@ class GenerateViewModel(
                 val importRes = _repository.importBook(file)
                 val bId = importRes.book_id
                 persistBookId(bId)
+                markOpened(bId)
+                _unsupportedBook.value = null
 
                 when (importRes.format) {
                     "vbook" -> {
@@ -1158,6 +1260,8 @@ class GenerateViewModel(
                 }
                 persistBookId(bId)
                 persistBuildId("")
+                markOpened(bId)
+                _unsupportedBook.value = null
 
                 val bookData = runCatching { _repository.getBook(bId) }.getOrNull()
                 val scenes = mutableListOf<SceneRef>()
@@ -1494,7 +1598,8 @@ class GenerateViewModel(
         // 2. Fallback: the most recent book known to the server.
         if (candidateId == null) {
             val recent = runCatching { _repository.getRecentBooks() }.getOrDefault(emptyList())
-            recent.firstOrNull()?.let { r ->
+            // A VBook 3.1 book cannot be opened — never restore into it.
+            recent.firstOrNull { !it.unsupported }?.let { r ->
                 if (r.book_id.isNotBlank()) {
                     candidateId = r.book_id
                     candidateBuildId = r.build_id ?: restoredBuildId
@@ -1588,6 +1693,7 @@ class GenerateViewModel(
         hasUnsavedChanges = false
         _isRegenerating.value = false
         SharedPositionManager.navigateTo(chapterId = null, sceneId = null)
+        _unsupportedBook.value = null
         _uiState.update { GenUiState() }
     }
 

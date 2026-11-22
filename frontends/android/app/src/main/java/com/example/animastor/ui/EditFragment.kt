@@ -2072,6 +2072,28 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
             textSize = 14f
             setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorError))
         })
+        // «Мои книги»: the one action left — the same confirmation as the Library list.
+        val bookId = viewModel.bookId
+        if (bookId.isNotBlank()) {
+            col.addView(com.google.android.material.button.MaterialButton(
+                ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
+                text = getString(R.string.my_books_delete_book)
+                tag = "vbook-unsupported-delete"
+                setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorError))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = 24 }
+                setOnClickListener {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val title = runCatching { viewModel.repository.fetchMyBooks() }.getOrNull()
+                            ?.firstOrNull { it.book_id == bookId }?.title
+                        MyBookActions.confirm(requireActivity(), bookId,
+                            com.example.animastor.repository.MyBooksModel.title(bookId, title),
+                            com.example.animastor.repository.MyBookAction.DELETE_BOOK)
+                    }
+                }
+            })
+        }
         parent.addView(col)
     }
 

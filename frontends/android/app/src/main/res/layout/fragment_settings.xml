@@ -270,34 +270,44 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Cache / Storyboard -->
-            <TextView
+            <!-- «Мои книги» (2026-11-22): replaces the «Очистить» block (its buttons
+                 acted on the OPEN book, which the screen did not show). Opens the
+                 Library on its «Мои книги» tab — not a separate screen. -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/settings_cache"
-                android:textColor="?attr/colorOnSurface"
-                android:textSize="13sp"
-                android:letterSpacing="0.06"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/clearCacheButton"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginTop="4dp"
-                android:text="@string/settings_cache_clear"
-                android:gravity="center"
-                style="@style/Widget.Animastor.Button.Outlined.Error" />
-
-            <Button
-                android:id="@+id/deleteVbookButton"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginTop="8dp"
                 android:layout_marginBottom="20dp"
-                android:text="@string/settings_delete_vbook"
-                android:gravity="center"
-                style="@style/Widget.Animastor.Button.Outlined.Error" />
+                app:cardCornerRadius="16dp"
+                app:cardElevation="1dp"
+                style="@style/Widget.Animastor.Card">
+
+                <LinearLayout
+                    android:id="@+id/myBooksButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="16dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:minHeight="48dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/my_books"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="14sp" />
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_chevron_right"
+                        android:contentDescription="@string/my_books"
+                        android:tint="?attr/colorOnSurfaceVariant" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- Debug -->
             <TextView

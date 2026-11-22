@@ -12,6 +12,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.animastor.R
 import com.example.animastor.databinding.FragmentFileBinding
+import com.example.animastor.repository.MyBookAction
+import com.example.animastor.repository.MyBooksModel
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
@@ -95,6 +97,18 @@ class FileFragment : Fragment(R.layout.fragment_file) {
 
 
 
+    /** «Открыть» (and «Открыть файл» of an empty «Мои книги»): the system picker → import. */
+    fun launchImport() {
+        openDocumentLauncher.launch(arrayOf("*/*"))
+    }
+
+    /** «Создать» (and «Создать книгу» of an empty «Мои книги»): a blank book → the editor. */
+    fun startCreateBook() {
+        hasSwitchedToPlay = false
+        viewModel.closeBook()
+        viewModel.createBlankBook()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         hasSwitchedToPlay = savedInstanceState?.getBoolean("hasSwitchedToPlay", false) ?: false
@@ -104,21 +118,23 @@ class FileFragment : Fragment(R.layout.fragment_file) {
         super.onViewCreated(view, savedInstanceState)
         binding = FragmentFileBinding.bind(view)
 
-        binding?.importCard?.setOnClickListener {
-            openDocumentLauncher.launch(arrayOf("*/*"))
-        }
+        binding?.importCard?.setOnClickListener { launchImport() }
 
-        binding?.createCard?.setOnClickListener {
-            viewModel.closeBook()
-            viewModel.createBlankBook()
-        }
+        binding?.createCard?.setOnClickListener { startCreateBook() }
 
+        // Library — «Мои книги» by default; the one entry point (MainActivity.openLibrary).
         binding?.libraryCard?.setOnClickListener {
-            parentFragmentManager.beginTransaction()
-                .hide(this)
-                .add(R.id.nav_host_container, LibraryFragment(), "LibraryFragment")
-                .addToBackStack(null)
-                .commit()
+            (requireActivity() as MainActivity).openLibrary()
+        }
+
+        // VBook 3.1 book the user tried to open: «Удалить книгу» (same confirmation as «Мои книги»).
+        binding?.unsupportedDeleteButton?.setOnClickListener {
+            val info = viewModel.unsupportedBook.value ?: return@setOnClickListener
+            lifecycleScope.launch {
+                val title = runCatching { viewModel.repository.fetchMyBooks() }.getOrNull()
+                    ?.firstOrNull { it.book_id == info.bookId }?.title
+                MyBookActions.confirm(requireActivity(), info.bookId, MyBooksModel.title(info.bookId, title), MyBookAction.DELETE_BOOK)
+            }
         }
 
         binding?.downloadBookButton?.setOnClickListener {
@@ -277,6 +293,16 @@ class FileFragment : Fragment(R.layout.fragment_file) {
                     viewModel.exportProgress.collect { progress ->
                         if (viewModel.isExporting.value && progress > 0f) {
                             setProgress(progress)
+                        }
+                    }
+                }
+                launch {
+                    viewModel.unsupportedBook.collect { info ->
+                        val b = binding ?: return@collect
+                        b.unsupportedBox.visibility = if (info != null) View.VISIBLE else View.GONE
+                        if (info != null) {
+                            b.unsupportedText.text = getString(R.string.vbook_unsupported_body, info.version, info.supported.toString()) +
+                                "\n" + getString(R.string.vbook_unsupported_action)
                         }
                     }
                 }

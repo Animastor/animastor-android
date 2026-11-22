@@ -1,29 +1,17 @@
 package com.example.animastor.ui
 
 import android.content.Context
-import android.view.LayoutInflater
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
-import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.lifecycleScope
 import com.example.animastor.BuildConfig
 import com.example.animastor.R
-import com.example.animastor.databinding.DialogDeleteVbookBinding
 import com.example.animastor.databinding.FragmentSettingsBinding
-import kotlinx.coroutines.launch
 
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
     private var binding: FragmentSettingsBinding? = null
-    private val viewModel: GenerateViewModel by activityViewModels {
-        GenerateViewModel.factory
-    }
-    private val playbackViewModel: PlaybackViewModel by activityViewModels {
-        PlaybackViewModel.factory
-    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -135,107 +123,9 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
                 .commit()
         }
 
-        b.clearCacheButton.setOnClickListener {
-            if (viewModel.bookId.isBlank()) {
-                // No book open — just clear local cache
-                viewModel.repository.clearCache()
-                val cacheDir = requireContext().cacheDir
-                var cleared = 0
-                cacheDir.listFiles()?.forEach { file ->
-                    if (file.name.startsWith("chunk-") || file.name.startsWith("video-") || file.name.startsWith("scene_audio-")) {
-                        file.delete()
-                        cleared++
-                    }
-                }
-                Toast.makeText(requireContext(), "Cleared $cleared cached files", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val cacheInflate = LayoutInflater.from(requireContext())
-            val cacheBinding = DialogDeleteVbookBinding.inflate(cacheInflate)
-            cacheBinding.dialogMessage.text = getString(R.string.settings_cache_clear_confirm)
-
-            AppDialogs.action(
-                ctx = requireContext(),
-                title = getString(R.string.settings_cache_clear),
-                content = cacheBinding.root,
-                cancelText = getString(R.string.dialog_cancel),
-                actionText = getString(android.R.string.ok),
-            ) { dlg ->
-                dlg.dismiss()
-                val bookId = viewModel.bookId
-                lifecycleScope.launch {
-                    runCatching {
-                        // Clear only generated assets (chunks, images, audio, video)
-                        // while preserving the book structure (chapters, scenes, source).
-                        // This keeps the vBook intact — only the generated
-                        // storyboard content is removed.
-                        viewModel.repository.clearBookCache(bookId)
-                        viewModel.repository.clearCache()
-                        // Delete local temp cache files (chunk MP3, video, scene audio)
-                        val cacheDir = requireContext().cacheDir
-                        cacheDir.listFiles()?.forEach { file ->
-                            if (file.name.startsWith("chunk-") || file.name.startsWith("video-") || file.name.startsWith("scene_audio-")) {
-                                file.delete()
-                            }
-                        }
-                        // Clear playback state so the player shows empty state.
-                        // Do NOT close the book — the vBook structure is still
-                        // intact and the Navigator should keep displaying it.
-                        playbackViewModel.closeBook()
-                        // Reset any in-progress generation tracking
-                        viewModel.resetProgressState()
-                    }.onSuccess {
-                        Toast.makeText(requireContext(), R.string.settings_cache_cleared, Toast.LENGTH_SHORT).show()
-                    }.onFailure { e ->
-                        Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }.show()
-        }
-
-        b.deleteVbookButton.setOnClickListener {
-            if (viewModel.bookId.isBlank()) {
-                Toast.makeText(requireContext(), "No book open", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val inflater = LayoutInflater.from(requireContext())
-            val dialogBinding = DialogDeleteVbookBinding.inflate(inflater)
-            dialogBinding.dialogMessage.text = getString(R.string.settings_delete_vbook_confirm)
-
-            AppDialogs.action(
-                ctx = requireContext(),
-                title = getString(R.string.settings_delete_vbook),
-                content = dialogBinding.root,
-                cancelText = getString(R.string.dialog_cancel),
-                actionText = getString(android.R.string.ok),
-            ) { dlg ->
-                dlg.dismiss()
-                val bookId = viewModel.bookId
-                lifecycleScope.launch {
-                    runCatching {
-                        viewModel.repository.deleteBook(bookId)
-                        viewModel.repository.clearCache()
-                        // Delete local temp cache files (chunk MP3, video, scene audio)
-                        val cacheDir = requireContext().cacheDir
-                        cacheDir.listFiles()?.forEach { file ->
-                            if (file.name.startsWith("chunk-") || file.name.startsWith("video-") || file.name.startsWith("scene_audio-")) {
-                                file.delete()
-                            }
-                        }
-                        // Clear both ViewModels to prevent stale state from
-                        // lingering after book deletion (preloadCache,
-                        // chunkQueue, chunkPositions, UI state, etc.)
-                        viewModel.closeBook()
-                        playbackViewModel.closeBook()
-                    }.onSuccess {
-                        Toast.makeText(requireContext(), R.string.settings_delete_vbook_done, Toast.LENGTH_SHORT).show()
-                    }.onFailure { e ->
-                        Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }.show()
+        // «Мои книги» — the Library on its «Мои книги» tab (one screen, one entry point).
+        b.myBooksButton.setOnClickListener {
+            (requireActivity() as MainActivity).openMyBooks()
         }
 
         b.toolbar.setNavigationOnClickListener {

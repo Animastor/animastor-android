@@ -28,7 +28,8 @@ import retrofit2.HttpException
  *  - anonymous (`authenticated == false`): Login / Create account form with
  *    a mode switch button ("No account? Sign up" ↔ "Have an account? Sign in")
  *    and the registration hint "Keep your work forever";
- *  - authenticated: username + personal workspace + Sign out.
+ *  - authenticated: username + personal workspace + «Мои книги» + Sign out
+ *    («Мои книги» opens the Library on its «Мои книги» tab — [onMyBooks]).
  *
  * The session itself is an HttpOnly cookie kept by
  * [com.example.animastor.network.PersistentCookieJar] — this dialog never
@@ -44,13 +45,13 @@ object AuthDialog {
      * [onAuthChanged] fires after a successful login/register/logout so the
      * caller can refresh dependent state.
      */
-    fun show(activity: FragmentActivity, onAuthChanged: () -> Unit = {}) {
+    fun show(activity: FragmentActivity, onMyBooks: (() -> Unit)? = null, onAuthChanged: () -> Unit = {}) {
         fun dp(v: Int) = (v * activity.resources.displayMetrics.density + 0.5f).toInt()
 
         val me = AuthStore.state.value
 
         if (me.authenticated && me.user != null) {
-            showAccountPanel(activity, onAuthChanged, ::dp)
+            showAccountPanel(activity, onAuthChanged, onMyBooks, ::dp)
             return
         }
         showAuthForm(activity, Mode.LOGIN, onAuthChanged, ::dp)
@@ -58,7 +59,7 @@ object AuthDialog {
 
     // ── authenticated panel: username + workspace + logout ─────────────
 
-    private fun showAccountPanel(activity: FragmentActivity, onAuthChanged: () -> Unit, dp: (Int) -> Int) {
+    private fun showAccountPanel(activity: FragmentActivity, onAuthChanged: () -> Unit, onMyBooks: (() -> Unit)?, dp: (Int) -> Int) {
         val me = AuthStore.state.value
 
         val root = LinearLayout(activity).apply {
@@ -91,6 +92,21 @@ object AuthDialog {
 
         val dialog = AlertDialog.Builder(activity).setView(root).create()
         applyDialogSurface(activity, dialog)
+
+        // «Мои книги» — the Library on its «Мои книги» tab (web parity: UserMenu item).
+        if (onMyBooks != null) {
+            root.addView(MaterialButton(
+                activity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)).apply { topMargin = dp(16) }
+                text = activity.getString(R.string.my_books)
+                tag = "account-my-books"
+                setOnClickListener {
+                    dialog.dismiss()
+                    onMyBooks()
+                }
+            })
+        }
 
         val logout = MaterialButton(
             activity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle

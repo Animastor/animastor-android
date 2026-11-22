@@ -273,9 +273,21 @@ data class RecentBook(
     val state: String? = null,
     val source_type: String? = null,
     val file_hash: String? = null,
-    val updated_at: Long = 0,
+    /** Source shape: ISO string (manifest) or epoch seconds (PG) — Gson reads both as text; use [updated_at_ms]. */
+    val updated_at: String? = null,
     val parsed_chapters: Int = 0,
-    val total_scenes: Int = 0
+    val total_scenes: Int = 0,
+    // «Мои книги» (2026-11-22)
+    /** Book format: "4" / "4.x" — current; "3.1" with [unsupported] — legacy (number or string on the wire). */
+    val vbook_version: String? = null,
+    /** true — a book of an unsupported format (VBook 3.1): only deletion is allowed. */
+    val unsupported: Boolean = false,
+    /** [updated_at] normalized to epoch ms. */
+    val updated_at_ms: Long? = null,
+    /** When the owner last opened the book (POST /book/{id}/opened), epoch ms. */
+    val last_opened_at: Long? = null,
+    /** Anything DELETE /book/{id}/cache would remove; null — unknown. */
+    val has_generated_content: Boolean? = null
 )
 
 data class RecentBooksResponse(
