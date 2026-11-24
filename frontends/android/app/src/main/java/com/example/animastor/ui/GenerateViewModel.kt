@@ -140,6 +140,7 @@ class GenerateViewModel(
         override fun startTimer() = this@GenerateViewModel.startTimer()
         override fun startProgressStream(bookId: String) = this@GenerateViewModel.startProgressStream(bookId)
         override fun stopProgressStream() = this@GenerateViewModel.stopProgressStream()
+        override fun markIdle() { _generationStatus.value = GenerationStatus.IDLE }
     }
 
     /**

@@ -31,6 +31,8 @@ class GenerationStartArmingTest {
         fun elapsed(): Long = if (timerStartedAt > 0L) (now - timerStartedAt) / 1000L else finalElapsedSeconds
         override fun startProgressStream(bookId: String) { streamOpen = true; streamStarts++ }
         override fun stopProgressStream() { streamOpen = false }
+        var status = GenerationStatus.IDLE
+        override fun markIdle() { status = GenerationStatus.IDLE }
     }
 
     @Test fun `refused start - the timer does not tick and the stream is closed`() {
@@ -75,6 +77,14 @@ class GenerationStartArmingTest {
         assertTrue(s.streamOpen)
     }
 
+    @Test fun `refused start - generationStatus goes back to IDLE (web parity)`() {
+        val s = FakeSession()
+        s.status = GenerationStatus.RUNNING // startGeneration sets RUNNING before the POST
+        val armed = GenerationStartArming.arm(s, "book")
+        GenerationStartArming.settleRefused(s, armed)
+        assertEquals(GenerationStatus.IDLE, s.status)
+    }
+
     // ── Wiring in GenerateViewModel (source guards) ──
     private val vm by lazy { File("src/main/java/com/example/animastor/ui/GenerateViewModel.kt").readText() }
 
@@ -92,6 +102,10 @@ class GenerationStartArmingTest {
         // network / 429 / anything else: unchanged (does not prove that nothing runs)
         assertFalse(branch("Other").contains("settleRefusedStart"))
         assertEquals(2, Regex("""settleRefusedStart\(armed\)""").findAll(vm).count())
+    }
+
+    @Test fun `the ViewModel port marks generationStatus IDLE`() {
+        assertTrue(vm.contains("override fun markIdle() { _generationStatus.value = GenerationStatus.IDLE }"))
     }
 
     @Test fun `startGeneration arms before marking the session running`() {

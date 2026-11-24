@@ -18,6 +18,8 @@ interface GenerationStartPort {
     fun startTimer()
     fun startProgressStream(bookId: String)
     fun stopProgressStream()
+    /** generationStatus = IDLE (the bottom-nav pulse; web setGenerationStatus('IDLE')). */
+    fun markIdle()
 }
 
 /** What one click armed before the POST. */
@@ -53,10 +55,12 @@ object GenerationStartArming {
      * The server refused the command up front (nothing runs): the timer the
      * click started goes back to its previous value (a stop would show a fresh
      * 0:00 "final" time), the stream it opened is closed unless a generation
-     * was already running. NOT for transport errors / 429 — those do not prove
-     * that nothing runs.
+     * was already running. The status goes back to IDLE, as on web
+     * (settleRefusedStart, post171). NOT for transport errors / 429 — those do
+     * not prove that nothing runs.
      */
     fun settleRefused(port: GenerationStartPort, armed: ArmedStart) {
+        port.markIdle()
         if (armed.startedTimer) {
             port.timerStartedAt = armed.timerStartedAtBefore
             port.finalElapsedSeconds = armed.finalElapsedSecondsBefore
