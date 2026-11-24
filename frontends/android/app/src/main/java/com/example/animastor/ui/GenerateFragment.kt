@@ -1129,6 +1129,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
                 val labels = result.workerTypes.joinToString("», «") { getString(layerLabelResFor(it)) }
                 Toast.makeText(ctx, getString(R.string.generate_layer_disabled, labels), Toast.LENGTH_LONG).show()
             }
+            // 2026-11-24: 422 book_has_no_text — our own text by code, never "HTTP 422".
+            is GenerateViewModel.GenerationResult.BookHasNoText ->
+                Toast.makeText(ctx, getString(R.string.generate_book_has_no_text), Toast.LENGTH_LONG).show()
         }
     }
 
