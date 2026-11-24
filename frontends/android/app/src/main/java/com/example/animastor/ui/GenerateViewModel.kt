@@ -128,6 +128,32 @@ class GenerateViewModel(
         finalElapsedSeconds = 0L
     }
 
+    /** The session as [GenerationStartArming] sees it (startGeneration only). */
+    private val startPort = object : GenerationStartPort {
+        override var timerStartedAt: Long
+            get() = this@GenerateViewModel.timerStartedAt
+            set(v) { this@GenerateViewModel.timerStartedAt = v }
+        override var finalElapsedSeconds: Long
+            get() = this@GenerateViewModel.finalElapsedSeconds
+            set(v) { this@GenerateViewModel.finalElapsedSeconds = v }
+        override val isRegenerating: Boolean get() = _isRegenerating.value
+        override fun startTimer() = this@GenerateViewModel.startTimer()
+        override fun startProgressStream(bookId: String) = this@GenerateViewModel.startProgressStream(bookId)
+        override fun stopProgressStream() = this@GenerateViewModel.stopProgressStream()
+    }
+
+    /**
+     * /regenerate refused up front (409 layer_disabled, 422 book_has_no_text):
+     * no task exists. Session flags as before; the timer / progress stream this
+     * click armed are undone ([GenerationStartArming.settleRefused]). Not for
+     * the generic failure path (network, 429).
+     */
+    private fun settleRefusedStart(armed: ArmedStart) {
+        _newGenerationPending = false
+        _isRegenerating.value = false
+        GenerationStartArming.settleRefused(startPort, armed)
+    }
+
     /** Stop the timer — preserves final elapsed value, sets state to stopped (-1). */
     private fun stopTimer() {
         if (timerStartedAt > 0L) {
@@ -650,14 +676,16 @@ class GenerateViewModel(
         }
         val clickAction = action!!
         _generationStatus.value = GenerationStatus.RUNNING
+        // Timer + progress stream armed before the POST; recorded so that an
+        // up-front refusal can undo them (web parity: settleRefusedStart).
+        // Before _isRegenerating = true: the record says whether a session ran.
+        val armed = GenerationStartArming.arm(startPort, bookId)
         _isRegenerating.value = true
 
         // Don't reset _generationCompleted here — let _newGenerationPending
         // gate the UI until the server reports actual new workers, preventing
         // a brief flash of stale green 100% progress from the previous generation.
         _newGenerationPending = true
-        if (timerStartedAt <= 0L) startTimer()
-        startProgressStream(bookId)
 
         // 🔧 FIX: Don't cancel previous generationJob — parallel generations are
         // independent. The /regenerate API call is fire-and-forget; its response
@@ -716,16 +744,16 @@ class GenerateViewModel(
                     val body = runCatching { http?.response()?.errorBody()?.string() }.getOrNull()
                     when (val err = TaskStatusHelpers.classifyStartError(http?.code(), body, e.message ?: "unknown", req.workerTypes)) {
                         is TaskStatusHelpers.StartError.LayerDisabled -> {
-                            // Nothing runs — do not leave the session "regenerating".
-                            _newGenerationPending = false
-                            _isRegenerating.value = false
+                            // Nothing runs — do not leave the session "regenerating",
+                            // nor the timer / stream this click armed.
+                            settleRefusedStart(armed)
                             onResult(GenerationResult.LayerDisabled(err.workerTypes))
                         }
                         is TaskStatusHelpers.StartError.Other -> onResult(GenerationResult.Failed(err.message))
                         is TaskStatusHelpers.StartError.BookHasNoText -> {
-                            // Nothing runs — do not leave the session "regenerating".
-                            _newGenerationPending = false
-                            _isRegenerating.value = false
+                            // Nothing runs — do not leave the session "regenerating",
+                            // nor the timer / stream this click armed.
+                            settleRefusedStart(armed)
                             onResult(GenerationResult.BookHasNoText)
                         }
                     }
