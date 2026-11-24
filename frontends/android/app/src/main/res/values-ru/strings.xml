@@ -232,6 +232,7 @@
     <string name="dialog_cancel">Отмена</string>
     <string name="dialog_start">Запустить</string>
     <string name="generate_start_failed">Не удалось запустить генерацию: %1$s</string>
+    <string name="generate_book_has_no_text">В книге пока нет текста — добавьте текст в сцены и запустите генерацию.</string>
     <string name="generate_no_scene_selected">Откройте сцену, чтобы указать область</string>
     <string name="generate_started_vbook">Запущена генерация VBook</string>
     <string name="generate_started_layer">Запущена генерация: %1$s</string>

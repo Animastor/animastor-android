@@ -154,6 +154,7 @@
     <string name="dialog_cancel">Cancel</string>
     <string name="dialog_start">Start</string>
     <string name="generate_start_failed">Could not start generation: %1$s</string>
+    <string name="generate_book_has_no_text">The book has no text yet — add text to its scenes, then start the generation.</string>
     <string name="generate_no_scene_selected">Open a scene first to target a scope</string>
     <string name="generate_started_vbook">VBook generation started</string>
     <string name="generate_started_layer">%1$s generation started</string>

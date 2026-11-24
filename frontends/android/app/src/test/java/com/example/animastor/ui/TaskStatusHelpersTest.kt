@@ -114,6 +114,23 @@ class TaskStatusHelpersTest {
             TaskStatusHelpers.classifyStartError(409, "not json", "HTTP 409", listOf("audio")))
     }
 
+    // 2026-11-24: a blank book is refused up front with 422 book_has_no_text;
+    // the UI shows its own string by code, an unknown code keeps the server message.
+    @Test fun bookHasNoText422UsesItsOwnKind() {
+        val body = """{"error":"book_has_no_text","code":"book_has_no_text","message":"The book has no text yet — add text to its scenes, then start the generation."}"""
+        assertEquals(TaskStatusHelpers.StartError.BookHasNoText,
+            TaskStatusHelpers.classifyStartError(422, body, "HTTP 422", listOf("audio")))
+        // code only in `error` (older shape) is still recognised
+        assertEquals(TaskStatusHelpers.StartError.BookHasNoText,
+            TaskStatusHelpers.classifyStartError(422, """{"error":"book_has_no_text"}""", "HTTP 422", listOf("image")))
+    }
+
+    @Test fun unknown422ShowsTheServerMessageNotTheHttpStatus() {
+        val body = """{"error":"some_other_code","code":"some_other_code","message":"Текст от сервера"}"""
+        assertEquals(TaskStatusHelpers.StartError.Other("Текст от сервера"),
+            TaskStatusHelpers.classifyStartError(422, body, "HTTP 422", listOf("audio")))
+    }
+
     @Test fun progressTaskDefaultsKeepOldBackendsWorking() {
         val t = ProgressTask(type = "audio", total = 5)
         assertNull(t.status)

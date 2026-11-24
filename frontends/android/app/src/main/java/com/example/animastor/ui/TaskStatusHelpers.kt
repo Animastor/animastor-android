@@ -203,26 +203,37 @@ object TaskStatusHelpers {
     /** Classification of a failed /regenerate call. */
     sealed class StartError {
         data class LayerDisabled(val workerTypes: List<String>) : StartError()
+        /** 422 `book_has_no_text` (2026-11-24): a blank book — nothing to
+         *  generate. The text comes from strings.xml by code, never from the
+         *  (English) server message. */
+        object BookHasNoText : StartError()
         data class Other(val message: String) : StartError()
     }
 
     /**
-     * Classify a failed /regenerate: HTTP 409 with body error "layer_disabled"
-     * → [StartError.LayerDisabled] (types from disabled_worker_types, else the
-     * requested ones); anything else keeps the generic path.
+     * Classify a failed /regenerate by the body code:
+     *  - HTTP 422 `book_has_no_text` → [StartError.BookHasNoText];
+     *  - HTTP 409 `layer_disabled` → [StartError.LayerDisabled] (types from
+     *    disabled_worker_types, else the requested ones);
+     *  - anything else → [StartError.Other] with the server `message` when the
+     *    body carries one (so an unknown code never shows a bare "HTTP 422"),
+     *    otherwise the transport message.
      */
     fun classifyStartError(httpCode: Int?, errorBody: String?, message: String, requested: List<String>): StartError {
-        if (httpCode == 409 && !errorBody.isNullOrBlank()) {
-            val obj = runCatching { JsonParser.parseString(errorBody).asJsonObject }.getOrNull()
-            val err = obj?.get("error")?.takeIf { it.isJsonPrimitive }?.asString
-            if (err == "layer_disabled") {
-                val listed = obj.get("disabled_worker_types")
-                    ?.takeIf { it.isJsonArray }?.asJsonArray
-                    ?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString }
-                    .orEmpty()
-                return StartError.LayerDisabled(if (listed.isNotEmpty()) listed else requested)
-            }
+        val obj = errorBody?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { JsonParser.parseString(it).asJsonObject }.getOrNull() }
+        val code = obj?.get("code")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: obj?.get("error")?.takeIf { it.isJsonPrimitive }?.asString
+        if (httpCode == 422 && code == "book_has_no_text") return StartError.BookHasNoText
+        if (httpCode == 409 && code == "layer_disabled") {
+            val listed = obj?.get("disabled_worker_types")
+                ?.takeIf { it.isJsonArray }?.asJsonArray
+                ?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString }
+                .orEmpty()
+            return StartError.LayerDisabled(if (listed.isNotEmpty()) listed else requested)
         }
-        return StartError.Other(message)
+        val serverMessage = obj?.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+            ?.trim()?.takeIf { it.isNotEmpty() }
+        return StartError.Other(serverMessage ?: message)
     }
 }

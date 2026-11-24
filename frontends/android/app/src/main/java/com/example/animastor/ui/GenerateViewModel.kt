@@ -527,6 +527,8 @@ class GenerateViewModel(
         data class Failed(val message: String) : GenerationResult()
         /** Stage 155: /regenerate 409 layer_disabled — no task was created. */
         data class LayerDisabled(val workerTypes: List<String>) : GenerationResult()
+        /** 2026-11-24: /regenerate 422 book_has_no_text — a blank book, no task was created. */
+        object BookHasNoText : GenerationResult()
     }
 
     fun startGeneration(
@@ -620,6 +622,12 @@ class GenerateViewModel(
                             onResult(GenerationResult.LayerDisabled(err.workerTypes))
                         }
                         is TaskStatusHelpers.StartError.Other -> onResult(GenerationResult.Failed(err.message))
+                        is TaskStatusHelpers.StartError.BookHasNoText -> {
+                            // Nothing runs — do not leave the session "regenerating".
+                            _newGenerationPending = false
+                            _isRegenerating.value = false
+                            onResult(GenerationResult.BookHasNoText)
+                        }
                     }
                 }
             }
