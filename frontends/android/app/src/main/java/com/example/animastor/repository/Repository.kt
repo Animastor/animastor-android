@@ -713,6 +713,15 @@ class Repository(
      * Used by session restore: a fresh install / cold start can pick the most
      * recent book instead of showing the empty state.
      */
+    /** «Мои книги»: the whole workspace list (the server caps one call at 500); throws on failure. */
+    suspend fun fetchMyBooks(): List<RecentBook> = api.getRecentBooks(MY_BOOKS_LIMIT).books
+
+    /** «Книга открыта» — best effort, never throws (opening must not depend on it). */
+    suspend fun markBookOpened(bookId: String) {
+        if (bookId.isBlank()) return
+        runCatching { api.markBookOpened(bookId) }
+    }
+
     suspend fun getRecentBooks(): List<RecentBook> {
         return runCatching {
             api.getRecentBooks().books

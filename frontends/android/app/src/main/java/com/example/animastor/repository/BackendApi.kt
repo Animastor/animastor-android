@@ -405,7 +405,11 @@ interface BackendApi {
     ): BookStatus
 
     @GET("/api/v1/books")
-    suspend fun getRecentBooks(): RecentBooksResponse
+    suspend fun getRecentBooks(@Query("limit") limit: Int? = null): RecentBooksResponse
+
+    /** «Мои книги»: the book was opened — records last_opened_at, nothing else. */
+    @POST("/api/v1/book/{bookId}/opened")
+    suspend fun markBookOpened(@Path("bookId") bookId: String): GenericResponse
 
     @POST("/api/v1/book/{bookId}/trigger-next-window")
     suspend fun triggerNextWindow(

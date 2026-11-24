@@ -1093,4 +1093,29 @@
     <string name="hero_stat_passport">appearance %1$s/3</string>
     <string name="hero_stat_voice">voice %1$s/2</string>
     <string name="reasoning_title">Model reasoning</string>
+    <!-- My books — Library tabs (2026-11-22) -->
+    <string name="library_tab_mine">My books</string>
+    <string name="library_tab_public">Public library</string>
+    <string name="coming_soon">Soon</string>
+    <string name="library_public_soon">Soon: books shared by other users will appear here.</string>
+    <string name="my_books">My books</string>
+    <string name="my_books_empty_title">No books yet</string>
+    <string name="my_books_empty_desc">Create a new book or open a file (.vbook, .epub, .txt).</string>
+    <string name="my_books_create">Create a book</string>
+    <string name="my_books_open_file">Open a file</string>
+    <string name="my_books_open">Open</string>
+    <string name="my_books_menu">Book actions</string>
+    <string name="my_books_delete_content">Delete generated content</string>
+    <string name="my_books_delete_book">Delete book</string>
+    <string name="my_books_delete_content_confirm">Delete the generated content of “%1$s” (images, audio, video) from the server? The text, heroes and voice references stay; the content will have to be generated again.</string>
+    <string name="my_books_delete_book_confirm">Delete the book “%1$s” from the server with everything in it? This cannot be undone.</string>
+    <string name="my_books_content_deleted">Generated content deleted</string>
+    <string name="my_books_book_deleted">Book deleted</string>
+    <string name="my_books_legacy">legacy format</string>
+    <string name="my_books_opened_at">Opened %1$s</string>
+    <string name="my_books_updated_at">Updated %1$s</string>
+    <string name="my_books_login_required">Sign in to see your books.</string>
+    <string name="my_books_load_failed">Could not load the books: %1$s</string>
+    <string name="my_books_retry">Retry</string>
+    <string name="my_books_action_failed">Error: %1$s</string>
 </resources>

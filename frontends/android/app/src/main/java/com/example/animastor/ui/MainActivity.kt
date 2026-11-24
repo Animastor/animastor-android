@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -21,6 +22,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.animastor.R
 import com.example.animastor.databinding.ActivityMainBinding
 import com.example.animastor.repository.AuthStore
+import com.example.animastor.repository.LibraryTab
 import com.example.animastor.ui.GenerationStatus
 import com.example.animastor.ui.VBookStage
 
@@ -58,6 +60,46 @@ class MainActivity : AppCompatActivity() {
 
     fun switchToGenerateTab() {
         binding.bottomNavigation.selectedItemId = R.id.generateFragment
+    }
+
+    fun switchToFileTab() {
+        binding.bottomNavigation.selectedItemId = R.id.fileFragment
+    }
+
+    // ── «Мои книги» (2026-11-22) ──────────────────────────────────────
+    // ONE Library screen for every shortcut: the File «Библиотека» card, the
+    // Settings «Мои книги» row and the account menu (web: router.openMyBooks →
+    // /library?tab=mine). The only place a LibraryFragment is created.
+
+    /** The Library on [tab]; an already open Library just switches the tab. */
+    fun openLibrary(tab: LibraryTab = LibraryTab.MINE) {
+        val existing = supportFragmentManager.findFragmentByTag(LibraryFragment.TAG) as? LibraryFragment
+        if (existing != null && existing.isAdded && !existing.isHidden) {
+            existing.selectTab(tab)
+            return
+        }
+        supportFragmentManager.beginTransaction()
+            .add(R.id.nav_host_container, LibraryFragment.newInstance(tab), LibraryFragment.TAG)
+            .addToBackStack(LibraryFragment.TAG)
+            .commit()
+    }
+
+    /** «Мои книги» — the Library on its «Мои книги» tab (not a separate screen). */
+    fun openMyBooks() = openLibrary(LibraryTab.MINE)
+
+    /** Close the screens opened over the tabs (Library, Settings, …), then [then]. */
+    fun leaveOverlaysAnd(then: () -> Unit) {
+        supportFragmentManager.popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        then()
+    }
+
+    /** «Создать книгу» / «Открыть файл» of an empty «Мои книги»: the File screen does it. */
+    fun runOnFileScreen(action: (FileFragment) -> Unit) {
+        leaveOverlaysAnd {
+            switchToFileTab()
+            supportFragmentManager.executePendingTransactions()
+            (supportFragmentManager.findFragmentByTag("FileFragment") as? FileFragment)?.let(action)
+        }
     }
 
     fun switchToAiTab(createMode: Boolean = false) {
@@ -151,7 +193,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 AuthStore.refresh()
                 val before = AuthStore.state.value
-                AuthDialog.show(this@MainActivity) {
+                AuthDialog.show(this@MainActivity, onMyBooks = { openMyBooks() }) {
                     lifecycleScope.launch { handleAuthTransition(before) }
                 }
             }

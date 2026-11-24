@@ -1053,4 +1053,29 @@
     <string name="hero_stat_passport">внешность %1$s/3</string>
     <string name="hero_stat_voice">голос %1$s/2</string>
     <string name="reasoning_title">Рассуждение модели</string>
+    <!-- «Мои книги» — вкладки Библиотеки (2026-11-22) -->
+    <string name="library_tab_mine">Мои книги</string>
+    <string name="library_tab_public">Общая библиотека</string>
+    <string name="coming_soon">Скоро</string>
+    <string name="library_public_soon">Скоро здесь появятся книги, которыми делятся другие пользователи.</string>
+    <string name="my_books">Мои книги</string>
+    <string name="my_books_empty_title">Здесь пока нет книг</string>
+    <string name="my_books_empty_desc">Создайте новую книгу или откройте файл (.vbook, .epub, .txt).</string>
+    <string name="my_books_create">Создать книгу</string>
+    <string name="my_books_open_file">Открыть файл</string>
+    <string name="my_books_open">Открыть</string>
+    <string name="my_books_menu">Действия с книгой</string>
+    <string name="my_books_delete_content">Удалить сгенерированный контент</string>
+    <string name="my_books_delete_book">Удалить книгу</string>
+    <string name="my_books_delete_content_confirm">Удалить сгенерированный контент книги «%1$s» (изображения, аудио, видео) с сервера? Текст книги, герои и референсы голосов останутся; контент придётся сгенерировать заново.</string>
+    <string name="my_books_delete_book_confirm">Удалить книгу «%1$s» с сервера вместе со всем её содержимым? Это действие необратимо.</string>
+    <string name="my_books_content_deleted">Сгенерированный контент удалён</string>
+    <string name="my_books_book_deleted">Книга удалена</string>
+    <string name="my_books_legacy">устаревший формат</string>
+    <string name="my_books_opened_at">Открыта %1$s</string>
+    <string name="my_books_updated_at">Изменена %1$s</string>
+    <string name="my_books_login_required">Войдите, чтобы увидеть свои книги.</string>
+    <string name="my_books_load_failed">Не удалось загрузить список книг: %1$s</string>
+    <string name="my_books_retry">Повторить</string>
+    <string name="my_books_action_failed">Ошибка: %1$s</string>
 </resources>
