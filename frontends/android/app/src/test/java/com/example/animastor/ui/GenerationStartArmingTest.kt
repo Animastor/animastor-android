@@ -19,6 +19,8 @@ class GenerationStartArmingTest {
         override var timerStartedAt = 0L
         override var finalElapsedSeconds = 0L
         override var isRegenerating = false
+        override var newGenerationPending = false
+        override var generationStatus = GenerationStatus.IDLE
         var streamOpen = false
         var streamStarts = 0
 
@@ -75,6 +77,31 @@ class GenerationStartArmingTest {
         assertTrue(s.streamOpen)
     }
 
+    @Test fun `no generation running - a refusal leaves IDLE, flags false (web parity)`() {
+        val s = FakeSession()
+        val armed = GenerationStartArming.arm(s, "book")
+        assertEquals(GenerationStatus.RUNNING, s.generationStatus)
+        assertTrue(s.isRegenerating && s.newGenerationPending)
+        GenerationStartArming.settleRefused(s, armed)
+        assertEquals(GenerationStatus.IDLE, s.generationStatus)
+        assertFalse(s.isRegenerating)
+        assertFalse(s.newGenerationPending)
+    }
+
+    @Test fun `a running generation keeps its flags and status when a second start is refused`() {
+        val s = FakeSession()
+        GenerationStartArming.arm(s, "book")
+        s.newGenerationPending = false // the running generation already reported progress
+        val before = Triple(s.isRegenerating, s.newGenerationPending, s.generationStatus)
+        assertEquals(Triple(true, false, GenerationStatus.RUNNING), before)
+
+        val second = GenerationStartArming.arm(s, "book")
+        assertTrue(second.sessionWasRunning)
+        GenerationStartArming.settleRefused(s, second)
+        assertEquals(before, Triple(s.isRegenerating, s.newGenerationPending, s.generationStatus))
+        assertTrue(s.streamOpen)
+    }
+
     // ── Wiring in GenerateViewModel (source guards) ──
     private val vm by lazy { File("src/main/java/com/example/animastor/ui/GenerateViewModel.kt").readText() }
 
@@ -94,12 +121,22 @@ class GenerationStartArmingTest {
         assertEquals(2, Regex("""settleRefusedStart\(armed\)""").findAll(vm).count())
     }
 
-    @Test fun `startGeneration arms before marking the session running`() {
-        val arm = vm.indexOf("val armed = GenerationStartArming.arm(startPort, bookId)")
-        assertTrue(arm >= 0)
-        val running = vm.indexOf("_isRegenerating.value = true", arm)
-        assertTrue("arm must read isRegenerating before it is set", running > arm && running - arm < 200)
-        // the old inline arming of startGeneration is gone
-        assertFalse(vm.contains("if (timerStartedAt <= 0L) startTimer()\n        startProgressStream(bookId)"))
+    @Test fun `the ViewModel port writes the real session state`() {
+        assertTrue(vm.contains("set(v) { _isRegenerating.value = v }"))
+        assertTrue(vm.contains("set(v) { _newGenerationPending = v }"))
+        assertTrue(vm.contains("set(v) { _generationStatus.value = v }"))
+    }
+
+    @Test fun `startGeneration arms through GenerationStartArming only`() {
+        val start = vm.indexOf("val clickAction = action!!")
+        val launch = vm.indexOf("viewModelScope.launch {", start)
+        assertTrue(start >= 0 && launch > start)
+        val region = vm.substring(start, launch)
+        assertTrue(region.contains("val armed = GenerationStartArming.arm(startPort, bookId)"))
+        // RUNNING, the flags, the timer and the stream are set by arm() — after it recorded the session
+        for (direct in listOf("_generationStatus.value = GenerationStatus.RUNNING", "_isRegenerating.value = true",
+                "_newGenerationPending = true", "startTimer()", "startProgressStream(bookId)")) {
+            assertFalse("direct '$direct' in startGeneration", region.contains(direct))
+        }
     }
 }

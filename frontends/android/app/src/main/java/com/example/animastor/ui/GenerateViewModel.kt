@@ -136,7 +136,15 @@ class GenerateViewModel(
         override var finalElapsedSeconds: Long
             get() = this@GenerateViewModel.finalElapsedSeconds
             set(v) { this@GenerateViewModel.finalElapsedSeconds = v }
-        override val isRegenerating: Boolean get() = _isRegenerating.value
+        override var isRegenerating: Boolean
+            get() = _isRegenerating.value
+            set(v) { _isRegenerating.value = v }
+        override var newGenerationPending: Boolean
+            get() = _newGenerationPending
+            set(v) { _newGenerationPending = v }
+        override var generationStatus: GenerationStatus
+            get() = _generationStatus.value
+            set(v) { _generationStatus.value = v }
         override fun startTimer() = this@GenerateViewModel.startTimer()
         override fun startProgressStream(bookId: String) = this@GenerateViewModel.startProgressStream(bookId)
         override fun stopProgressStream() = this@GenerateViewModel.stopProgressStream()
@@ -144,13 +152,11 @@ class GenerateViewModel(
 
     /**
      * /regenerate refused up front (409 layer_disabled, 422 book_has_no_text):
-     * no task exists. Session flags as before; the timer / progress stream this
-     * click armed are undone ([GenerationStartArming.settleRefused]). Not for
-     * the generic failure path (network, 429).
+     * no task exists — undo what the click armed ([GenerationStartArming.settleRefused]:
+     * IDLE / flags false, or, when a generation was already running, its flags
+     * and status as they were). Not for the generic failure path (network, 429).
      */
     private fun settleRefusedStart(armed: ArmedStart) {
-        _newGenerationPending = false
-        _isRegenerating.value = false
         GenerationStartArming.settleRefused(startPort, armed)
     }
 
@@ -675,17 +681,10 @@ class GenerateViewModel(
             return
         }
         val clickAction = action!!
-        _generationStatus.value = GenerationStatus.RUNNING
-        // Timer + progress stream armed before the POST; recorded so that an
+        // Status RUNNING, session flags, timer and progress stream — armed
+        // before the POST and recorded (with the session as it was) so that an
         // up-front refusal can undo them (web parity: settleRefusedStart).
-        // Before _isRegenerating = true: the record says whether a session ran.
         val armed = GenerationStartArming.arm(startPort, bookId)
-        _isRegenerating.value = true
-
-        // Don't reset _generationCompleted here — let _newGenerationPending
-        // gate the UI until the server reports actual new workers, preventing
-        // a brief flash of stale green 100% progress from the previous generation.
-        _newGenerationPending = true
 
         // 🔧 FIX: Don't cancel previous generationJob — parallel generations are
         // independent. The /regenerate API call is fire-and-forget; its response
