@@ -66,7 +66,7 @@ class PlaybackViewModel(
                     cacheDir = java.io.File(app.cacheDir, "media-cache"),
                     maxSizeBytes = 256 * 1024 * 1024
                 )
-                val repo = Repository(RetrofitClient.api, diskCache)
+                val repo = Repository(RetrofitClient.api, diskCache, RetrofitClient.bootstrapApi)
                 return PlaybackViewModel(application = app, _repository = repo) as T
             }
         }

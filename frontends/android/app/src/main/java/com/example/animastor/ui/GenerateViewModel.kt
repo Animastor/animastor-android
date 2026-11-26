@@ -12,6 +12,7 @@ import com.example.animastor.network.ProgressStream
 import com.example.animastor.network.ConnectivityObserver
 import com.example.animastor.network.RetrofitClient
 import com.example.animastor.repository.AssetsStateResponse
+import com.example.animastor.repository.BootstrapInProgressException
 import com.example.animastor.repository.BookSessionStore
 import com.example.animastor.repository.DiffSummary
 import com.example.animastor.repository.ResilientReloader
@@ -64,7 +65,7 @@ class GenerateViewModel(
                     cacheDir = java.io.File(app.cacheDir, "media-cache"),
                     maxSizeBytes = 256 * 1024 * 1024
                 )
-                val repo = Repository(RetrofitClient.api, diskCache)
+                val repo = Repository(RetrofitClient.api, diskCache, RetrofitClient.bootstrapApi)
                 return GenerateViewModel(application = app, _repository = repo) as T
             }
         }
@@ -453,6 +454,11 @@ class GenerateViewModel(
      * newer session. Mirrors the mobile web's vbookPollToken.
      */
     private var vbookPollToken = 0
+
+    /** `true` while this client's POST /bootstrap | /bootstrap-next-window is
+     *  in flight (repeated-tap guard; web parity: poll.isBootstrapInFlight). */
+    @Volatile
+    private var bootstrapInFlight = false
 
     // ── Layer defaults ────────────────────────────────────────────
 
@@ -848,6 +854,14 @@ class GenerateViewModel(
      */
     fun startVBookGeneration() {
         val bid = bookId.takeIf { it.isNotBlank() } ?: return
+        // Repeated-tap guard (bootstrap idempotency): while this client's POST
+        // /bootstrap | /bootstrap-next-window is in flight a second start is
+        // ignored — before, it cancelled the first call (the server run went
+        // on) and sent a second POST = a second run of the window.
+        if (bootstrapInFlight) {
+            Log.w(TAG, "startVBookGeneration: bootstrap already in flight — repeated start ignored")
+            return
+        }
         Log.i(TAG, "startVBookGeneration: $bid")
         _generationStatus.value = GenerationStatus.RUNNING
         // Mark the session regenerating (mirrors startGeneration) so the shared
@@ -878,16 +892,22 @@ class GenerateViewModel(
 
         generationJob?.cancel()
         val token = ++vbookPollToken
+        bootstrapInFlight = true
         generationJob = viewModelScope.launch {
             runCatching {
-                val status = runCatching { _repository.getLazyBookStatus(bid) }.getOrNull()
-                val needsBootstrap = status?.ready != true
-                if (needsBootstrap) {
-                    Log.i(TAG, "startVBookGeneration: calling bootstrapBook")
-                    _repository.bootstrapBook(bid)
-                } else {
-                    Log.i(TAG, "startVBookGeneration: calling bootstrapNextWindow")
-                    _repository.bootstrapNextWindow(bid)
+                try {
+                    val status = runCatching { _repository.getLazyBookStatus(bid) }.getOrNull()
+                    val needsBootstrap = status?.ready != true
+                    // One POST, no retry (Repository → RetrofitClient.bootstrapApi).
+                    if (needsBootstrap) {
+                        Log.i(TAG, "startVBookGeneration: calling bootstrapBook")
+                        _repository.bootstrapBook(bid)
+                    } else {
+                        Log.i(TAG, "startVBookGeneration: calling bootstrapNextWindow")
+                        _repository.bootstrapNextWindow(bid)
+                    }
+                } finally {
+                    bootstrapInFlight = false
                 }
             }.onSuccess {
                 pollVBookProgress(bid, token)
@@ -896,6 +916,13 @@ class GenerateViewModel(
                 // cancel) cancelled this job — its failure must not tear down
                 // the UI or timer of the newer session.
                 if (token != vbookPollToken) return@onFailure
+                if (e is BootstrapInProgressException) {
+                    // 409: another run of this book holds the server lock —
+                    // follow its progress, not an error (web parity).
+                    Log.i(TAG, "startVBookGeneration: bootstrap_in_progress — following the running window")
+                    pollVBookProgress(bid, token)
+                    return@onFailure
+                }
                 Log.w(TAG, "startVBookGeneration failed: ${e.message}")
                 // A client-side abort (OkHttp timeout / network blip) does NOT
                 // stop the backend agent — the bootstrap route keeps processing

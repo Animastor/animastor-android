@@ -12,7 +12,11 @@ import java.io.IOException
 
 class Repository(
     private val api: BackendApi,
-    diskCache: SimpleDiskCache? = null
+    diskCache: SimpleDiskCache? = null,
+    /** API for the non-idempotent window runs (bootstrap / next window /
+     *  resume) — production passes RetrofitClient.bootstrapApi (no OkHttp
+     *  retry on connection failure). Defaults to [api] for tests. */
+    private val bootstrapApi: BackendApi = api,
 ) {
     /** VBook 4 hero API (repository/HeroApi.kt) — the hero card and the scene look selector. */
     val heroes: HeroRepository by lazy { HeroRepository(com.example.animastor.network.RetrofitClient.heroApi) }
@@ -643,7 +647,7 @@ class Repository(
     suspend fun bootstrapBook(bookId: String): BootstrapResponse {
         Log.i("Repo", "bootstrapBook: $bookId")
         return try {
-            val response = api.bootstrapBook(bookId)
+            val response = bootstrapApi.bootstrapBook(bookId)
             Log.i("Repo", "bootstrapBook OK: ${response.characters} chars, ${response.locations} locs, ${response.scenes} scenes")
             response
         } catch (e: HttpException) {
@@ -652,6 +656,10 @@ class Repository(
                 try { JSONObject(errorBody).optString("error", e.message()) } catch (_: Exception) { e.message() }
             } else {
                 e.message()
+            }
+            if (BootstrapConflict.isBootstrapInProgress(e.code(), errorBody)) {
+                Log.i("Repo", "bootstrapBook: bootstrap_in_progress (409) — another run of this book is alive")
+                throw BootstrapInProgressException(BootstrapConflict.sessionId(errorBody))
             }
             Log.w("Repo", "bootstrapBook FAILED (${e.code()}): $backendMsg")
             throw IOException(backendMsg ?: "Bootstrap failed (${e.code()})")
@@ -670,7 +678,7 @@ class Repository(
     suspend fun bootstrapNextWindow(bookId: String): BootstrapNextWindowResponse {
         Log.i("Repo", "bootstrapNextWindow: $bookId")
         return try {
-            val response = api.bootstrapNextWindow(bookId)
+            val response = bootstrapApi.bootstrapNextWindow(bookId)
             Log.i("Repo", "bootstrapNextWindow OK: added=${response.added_scenes} cached=${response.cached} all_done=${response.all_done}")
             response
         } catch (e: HttpException) {
@@ -680,6 +688,10 @@ class Repository(
             } else {
                 e.message()
             }
+            if (BootstrapConflict.isBootstrapInProgress(e.code(), errorBody)) {
+                Log.i("Repo", "bootstrapNextWindow: bootstrap_in_progress (409) — another run of this book is alive")
+                throw BootstrapInProgressException(BootstrapConflict.sessionId(errorBody))
+            }
             Log.w("Repo", "bootstrapNextWindow FAILED (${e.code()}): $backendMsg")
             throw IOException(backendMsg ?: "Bootstrap next window failed (${e.code()})")
         }
@@ -688,7 +700,7 @@ class Repository(
     suspend fun resumeBootstrap(bookId: String): ResumeBootstrapResponse {
         Log.i("Repo", "resumeBootstrap: $bookId")
         return try {
-            val response = api.resumeBootstrap(bookId)
+            val response = bootstrapApi.resumeBootstrap(bookId)
             Log.i("Repo", "resumeBootstrap OK: state=${response.state} session=${response.session_id} msg=${response.progress_msg}")
             response
         } catch (e: HttpException) {

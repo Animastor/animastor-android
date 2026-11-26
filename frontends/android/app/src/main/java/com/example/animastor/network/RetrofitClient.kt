@@ -77,6 +77,23 @@ object RetrofitClient {
         retrofit.create(BackendApi::class.java)
     }
 
+    /**
+     * Client for the non-idempotent window runs (POST /bootstrap,
+     * /bootstrap-next-window, /resume-bootstrap): same jar, timeouts, pool and
+     * interceptors as [httpClient], but `retryOnConnectionFailure(false)` —
+     * OkHttp must never silently re-send such a POST after a connection
+     * failure (a re-sent POST is a second run of the window; bootstrap
+     * idempotency, animastor-docs architecture/BOOTSTRAP_IDEMPOTENCY.md).
+     */
+    val noRetryHttpClient: OkHttpClient by lazy {
+        httpClient.newBuilder().retryOnConnectionFailure(false).build()
+    }
+
+    /** [BackendApi] over [noRetryHttpClient] — used by Repository for the bootstrap calls. */
+    val bootstrapApi: BackendApi by lazy {
+        retrofit.newBuilder().client(noRetryHttpClient).build().create(BackendApi::class.java)
+    }
+
     /** VBook v4 hero API (raw responses, null-keeping bodies — repository/HeroApi.kt). */
     val heroApi: com.example.animastor.repository.HeroApi by lazy {
         retrofit.create(com.example.animastor.repository.HeroApi::class.java)
