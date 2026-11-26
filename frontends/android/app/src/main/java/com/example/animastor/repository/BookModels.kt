@@ -362,6 +362,8 @@ data class BootstrapResponse(
     val characters: Int = 0,
     val locations: Int = 0,
     val scenes: Int = 0,
+    /** true: the book was already bootstrapped — the call was a no-op (bootstrap idempotency). */
+    val already_bootstrapped: Boolean = false,
     val chapters: List<LazyParseChapterItem>? = null
 )
 
