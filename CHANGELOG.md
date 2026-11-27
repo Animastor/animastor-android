@@ -3,12 +3,12 @@
 Нормативно — `animastor-docs` (`CHANGELOG.md`, `architecture/ORCHESTRATION_V2.md` §11,
 паритет — `architecture/ANDROID_WEB_PARITY.md`). Здесь — краткая запись по репозиторию.
 
-## Unreleased — no-store для `/book/:id/generate/*` (ветка `fix/gen-listen-nostore`)
+## 0.3.6 (19) — 2026-11-27 — no-store для `/book/:id/generate/*` (ветка `fix/gen-listen-nostore`)
 
 - `network/PollRequests.kt` `isNoStorePath`: добавлен `/book/:id/generate(/…)` — `GET /generate/progress` идёт с
   `Cache-Control: no-store` (`NoStoreInterceptor`); `/generate-next` — по умолчанию. Тот же список, что у web
   `api/client.ts` и backend `middleware/no-store.js`. `PollRequestsTest` — те же фикстуры, что web.
-  `testDebugUnitTest` 378/0. Версия APK не поднималась (без выкладки).
+  `testDebugUnitTest` 378/0. Версия APK 0.3.6 (19).
 
 ## 0.3.5 (18) — 2026-11-27 — generate API v2 (ветка `feat/generate-api-v2`)
 
