@@ -26,18 +26,7 @@ data class DirtyScene(
     val changes: Map<String, Any>? = null
 )
 
-data class RegenerateRequest(
-    val new_book: BookData? = null,
-    val rebuild_all: Boolean = false,
-    val worker_types: List<String>? = null,
-    val scope: String? = null,
-    val chapter_id: String? = null,
-    val scene_id: String? = null,
-    /** The click that sent the command (additive, 2026-11-04; web parity). */
-    val client_action: ClientAction? = null
-)
-
-/** `client_action` of POST /regenerate — which button sent the command. */
+/** `client_action` of a click-sent command (hero voice design / upload) — which button sent it. */
 data class ClientAction(
     val kind: String = "user_click",
     val source: String,
@@ -71,19 +60,3 @@ data class StructureCreateResponse(
     val unit_index: Int = 0
 )
 
-data class RegenerateResponse(
-    val book_id: String? = null,
-    val build_id: String? = null,
-    val message: String? = null,
-    val dirty_scenes: List<DirtyScene>? = null,
-    val summary: DiffSummary? = null,
-    val rebuild_all: Boolean = false,
-    val scope: String? = null,
-    val tasks: List<GenerationTaskRef> = emptyList()
-)
-
-data class GenerationTaskRef(
-    val task_id: String = "",
-    val type: String = "",
-    val target_count: Int = 0
-)

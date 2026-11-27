@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppDialogs.action: the optional second (outlined) action button. -->
+    <item name="dialogSecondaryButton" type="id" />
+</resources>

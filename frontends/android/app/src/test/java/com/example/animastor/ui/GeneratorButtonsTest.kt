@@ -49,24 +49,22 @@ class GeneratorButtonsTest {
     @Test fun videoFromCurrentSceneSendsChapterAndScene() {
         val (chId, scId) = GeneratorCommands.scopeTargets("from_current_scene", ch, sc)
         val r = GeneratorCommands.request(listOf("video"), "from_current_scene", chId, scId,
-            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))
-        assertEquals(listOf("video"), r.worker_types)
-        assertEquals("from_current_scene", r.scope)
-        assertEquals(ch, r.chapter_id)
-        assertEquals(sc, r.scene_id)
-        assertEquals(true, r.rebuild_all)
-        assertEquals("generator.scope_dialog", r.client_action?.source)
+            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))!!
+        assertEquals(listOf("video"), r.layers)
+        assertEquals("from_current_scene", r.scope.level)
+        assertEquals(ch, r.scope.chapter_id)
+        assertEquals(sc, r.scope.scene_id)
+        assertEquals("missing", r.mode)
     }
 
-    @Test fun imageWholeBookIsRebuildAllWithoutTargets() {
+    @Test fun imageWholeBookWithoutTargets() {
         val (chId, scId) = GeneratorCommands.scopeTargets("whole_book", ch, sc)
         val r = GeneratorCommands.request(listOf("image"), "whole_book", chId, scId,
-            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))
-        assertEquals(listOf("image"), r.worker_types)
-        assertEquals("whole_book", r.scope)
-        assertEquals(true, r.rebuild_all)
-        assertNull(r.chapter_id)
-        assertNull(r.scene_id)
+            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))!!
+        assertEquals(listOf("image"), r.layers)
+        assertEquals("book", r.scope.level)
+        assertNull(r.scope.chapter_id)
+        assertNull(r.scope.scene_id)
     }
 
     @Test fun everyStoppedRowRepeatsItsOwnCommand() {
@@ -96,7 +94,9 @@ class GeneratorButtonsTest {
             "onGenerateVideoClicked" to "video",
         )) {
             val body = funBody(src, fn)
-            assertTrue("$fn opens the scope dialog", body.contains("showScopeDialog {"))
+            // generate API v2 (ADR §11.2): two buttons — missing / all — in the dialog
+            assertTrue("$fn opens the two-mode scope dialog", body.contains("showScopeDialog(twoModes = true) {"))
+            assertTrue("$fn passes the dialog's mode", body.contains("mode = mode"))
             assertEquals("$fn: exactly one startGeneration", 1, Regex("viewModel\\.startGeneration\\(").findAll(body).count())
             assertTrue("$fn: worker type $type", body.contains("workerTypes = listOf(\"$type\")"))
             assertTrue("$fn: UserAction of the dialog click",
@@ -115,7 +115,7 @@ class GeneratorButtonsTest {
     @Test fun generateAllAndVBookAreTheVBookWindowNotAGpuCommand() {
         val src = mainSource("ui/GenerateFragment.kt")
         val all = funBody(src, "onGenerateAllClicked")
-        assertTrue(all.contains("showScopeDialog {"))
+        assertTrue(all.contains("showScopeDialog(twoModes = false) {"))
         assertTrue("«Генерировать всё» → VBook", all.contains("onGenerateVBookClicked()"))
         assertFalse(all.contains("startGeneration("))
         val vbook = funBody(src, "onGenerateVBookClicked")
@@ -141,24 +141,39 @@ class GeneratorButtonsTest {
         }
     }
 
-    @Test fun onlyTheGuardedViewModelPathReachesRegenerate() {
-        // regenerateBookScoped: only GenerateViewModel.startGeneration (behind mayStart);
-        // the unscoped regenerateBook (no client_action) has no caller in the app.
-        val scopedCallers = mutableListOf<String>()
-        val unscopedCallers = mutableListOf<String>()
+    @Test fun onlyTheGuardedViewModelPathReachesGenerate() {
+        // generate API v2: POST /generate only from GenerateViewModel.startGeneration
+        // (behind mayStart); /regenerate has no declaration and no caller any more.
+        val callers = mutableListOf<String>()
         for (f in mainSources()) {
-            if (f.name == "Repository.kt" || f.name == "BackendApi.kt") continue
             val text = f.readText()
-            if (text.contains(".regenerateBookScoped(")) scopedCallers += f.name
-            if (Regex("\\.regenerateBook\\(").containsMatchIn(text)) unscopedCallers += f.name
+            assertFalse("${f.name}: /regenerate is gone", text.contains("/regenerate\""))
+            assertFalse("${f.name}: regenerateBook* is gone", Regex("(fun |\\.)regenerateBook(Scoped)?\\(").containsMatchIn(text))
+            if (f.name == "Repository.kt" || f.name == "BackendApi.kt") continue
+            if (Regex("\\.generate\\(bookId").containsMatchIn(text)) callers += f.name
         }
-        assertEquals(listOf("GenerateViewModel.kt"), scopedCallers)
-        assertEquals(emptyList<String>(), unscopedCallers)
+        assertEquals(listOf("GenerateViewModel.kt"), callers)
         val vm = mainSource("ui/GenerateViewModel.kt")
         val guard = vm.indexOf("if (!GeneratorCommands.mayStart(action))")
-        val call = vm.indexOf("_repository.regenerateBookScoped(")
+        val call = vm.indexOf("_repository.generate(bookId, body)")
         assertTrue("mayStart guard precedes the request", guard in 0 until call)
-        assertEquals(1, Regex("_repository\\.regenerateBookScoped\\(").findAll(vm).count())
+        assertEquals(1, Regex("_repository\\.generate\\(").findAll(vm).count())
+    }
+
+    @Test fun deadDeclarationsAreRemoved() {
+        // ADR §11.2 / legacy-removal-recon §2: no calls → removed with the switch to /generate
+        val api = mainSource("repository/BackendApi.kt")
+        val repo = mainSource("repository/Repository.kt")
+        for (name in listOf("resumeBootstrap", "triggerNextWindow", "getGenerationState", "regenerateBook", "cancelGeneration", "getProgressPanel")) {
+            assertFalse("BackendApi.$name", api.contains("fun $name("))
+            assertFalse("Repository.$name", repo.contains("fun $name("))
+        }
+        for (path in listOf("resume-bootstrap", "trigger-next-window", "generation-state", "regenerate", "cancel-generation", "progress-panel")) {
+            assertFalse("BackendApi path $path", api.contains("/{bookId}/$path\""))
+        }
+        // the new surface
+        for (path in listOf("/generate\"", "/generate/stop", "/generate/progress")) assertTrue(api.contains(path))
+        assertTrue(mainSource("network/GenProgressStream.kt").contains("/generate/stream"))
     }
 
     // ── Задача K (2026-11-05): stopped row = progress row + ▶ / ■ icons ──
@@ -246,6 +261,10 @@ class GeneratorButtonsTest {
         assertTrue(body.contains("_dismissedTaskIds.add(taskId)"))
         assertFalse(body.contains("startGeneration(") || body.contains("regenerate"))
         val cancel = vm.substring(vm.indexOf("fun cancelTask("), vm.indexOf("fun dismissStoppedTask("))
+        // generate API v2: row ■ → {command_id}, section ■ → {layer}; VBook / cover keep cancel-worker
+        assertTrue(cancel.contains("GenerateApiV2.stopBody(type, taskId)"))
+        assertTrue(cancel.contains("_repository.generateStop(bookId, body)"))
+        assertTrue(cancel.contains("GenerateApiV2.stopSucceeded(taskId, res)"))
         assertTrue(cancel.contains("_repository.cancelWorker(bookId, type, taskId)"))
         assertTrue(cancel.contains("GeneratorCommands.dismissSucceeded(taskId, res.task_ids)"))
     }

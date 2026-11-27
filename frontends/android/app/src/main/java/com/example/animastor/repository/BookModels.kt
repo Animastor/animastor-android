@@ -440,21 +440,6 @@ data class ImportResponse(
     val dedup: Boolean = false
 )
 
-data class ResumeBootstrapResponse(
-    val book_id: String? = null,
-    val state: String? = null,
-    /** Server-decided readiness; client no longer matches state strings. */
-    val ready: Boolean = false,
-    val title: String? = null,
-    val author: String? = null,
-    val characters: Int = 0,
-    val locations: Int = 0,
-    val scenes: Int = 0,
-    val session_id: String? = null,
-    val session_status: String? = null,
-    val progress_msg: String? = null,
-    val message: String? = null
-)
 
 data class LazyBookChapter(
     val chapter_id: String? = null,
@@ -574,26 +559,8 @@ data class FailedSceneRef(
 )
 
 // ======================================================
-// Window Generation Models
+// cancel-worker (VBook / cover stop; generation stops — GenerateApiV2.kt)
 // ======================================================
-
-data class TriggerNextWindowRequest(
-    val chapter_id: String? = null,
-    val scene_id: String? = null,
-    val unit_id: String? = null,
-    val unit_index: Int? = null,
-    val register_for_gpu: Boolean? = null
-)
-
-data class TriggerNextWindowResponse(
-    val triggered: Boolean = false,
-    val queued: Boolean = false,
-    val session_id: String? = null,
-    val window_index: Int? = null,
-    val all_done: Boolean = false,
-    val reason: String? = null,
-    val error: String? = null
-)
 
 data class CancelWorkerRequest(
     val type: String? = null,
@@ -608,19 +575,6 @@ data class CancelWorkerResponse(
     val task_ids: List<String>? = null
 )
 
-data class GenerationStateResponse(
-    val book_id: String? = null,
-    val last_window_index: Int = -1,
-    val status: String? = null,
-    val active_session_id: String? = null,
-    val active_window_index: Int? = null,
-    val active_status: String? = null,
-    val error: String? = null,
-    val has_more: Boolean = false,
-    val total_chapters: Int = 0,
-    val parsed_chapters: Int = 0,
-    val remaining: Int = 0
-)
 
 
 

@@ -40,6 +40,10 @@ object AppDialogs {
         cancelText: String,
         actionText: String,
         destructive: Boolean = false,
+        /** Optional second action (outlined, between cancel and the main action) —
+         *  the Generator scope dialog's «Перегенерировать» (web parity). */
+        secondaryText: String? = null,
+        onSecondary: ((dialog: AlertDialog) -> Unit)? = null,
         onAction: (dialog: AlertDialog) -> Unit,
     ): AlertDialog {
         val dm = ctx.resources.displayMetrics
@@ -146,6 +150,24 @@ object AppDialogs {
 
         cancel.setOnClickListener { dialog.dismiss() }
         actionBtn.setOnClickListener { onAction(dialog) }
+        if (secondaryText != null && onSecondary != null) {
+            // Same look as the cancel button (outlined, 52dp, 8dp gap), placed before the action.
+            val secondary = MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                id = R.id.dialogSecondaryButton
+                text = secondaryText
+                textSize = 13f
+                gravity = android.view.Gravity.CENTER
+                strokeColor = cancel.strokeColor
+                strokeWidth = cancel.strokeWidth
+                setTextColor(cancel.textColors)
+                setOnClickListener { onSecondary(dialog) }
+            }
+            footer.addView(
+                secondary,
+                footer.indexOfChild(actionBtn),
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(52)).apply { marginEnd = dp(8) },
+            )
+        }
         return dialog
     }
 }

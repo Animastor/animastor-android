@@ -1,7 +1,7 @@
 package com.example.animastor.ui
 
-import com.example.animastor.repository.ClientAction
-import com.example.animastor.repository.RegenerateRequest
+import com.example.animastor.repository.GenerateApiV2
+import com.example.animastor.repository.GenerateRequestBody
 import java.security.SecureRandom
 
 /**
@@ -60,25 +60,20 @@ object GeneratorCommands {
         return chId to scId
     }
 
-    fun clientAction(action: UserAction): ClientAction =
-        ClientAction(kind = "user_click", source = action.source, action_id = action.actionId, trusted = action.trusted)
-
-    /** The exact /regenerate body of a Generator command. */
+    /** The exact POST /generate body of a Generator command (generate API v2,
+     *  ADR ORCHESTRATION_V2 §11.1): scope object, layers, mode, the click's id
+     *  as client_action_id. null: the scope needs a position that is missing. */
     fun request(
         workerTypes: List<String>,
         scope: String,
         chapterId: String?,
         sceneId: String?,
         action: UserAction,
-    ): RegenerateRequest = RegenerateRequest(
-        new_book = null,
-        rebuild_all = true,
-        worker_types = workerTypes,
-        scope = scope,
-        chapter_id = chapterId,
-        scene_id = sceneId,
-        client_action = clientAction(action),
-    )
+        mode: String = GenerateApiV2.MODE_MISSING,
+    ): GenerateRequestBody? {
+        val genScope = GenerateApiV2.toGenerateScope(scope, chapterId, sceneId) ?: return null
+        return GenerateRequestBody(scope = genScope, layers = workerTypes, mode = mode, client_action_id = action.actionId)
+    }
 
     /** Задача K — «■ Снять» of a stopped row succeeded only when the backend
      *  listed that task in `task_ids` (an older backend answers `[]` for a

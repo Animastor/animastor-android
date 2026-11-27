@@ -243,17 +243,28 @@ interface BackendApi {
         @Body request: DiffRequest
     ): DiffResponse
 
-    @POST("/api/v1/book/{bookId}/regenerate")
-    suspend fun regenerateBook(
-        @Path("bookId") bookId: String,
-        @Body request: RegenerateRequest
-    ): RegenerateResponse
+    // ── Generate API v2 (ADR ORCHESTRATION_V2 §11.1) ──
+    // Replaces /regenerate, cancel-generation, progress-panel, progress-stream
+    // (the stream is network/GenProgressStream.kt). The legacy declarations
+    // regenerateBook(new_book) / regenerateBookScoped / cancelGeneration /
+    // getProgressPanel are removed with this switch.
 
-    @POST("/api/v1/book/{bookId}/regenerate")
-    suspend fun regenerateBookScoped(
+    @POST("/api/v1/book/{bookId}/generate")
+    suspend fun generate(
         @Path("bookId") bookId: String,
-        @Body request: RegenerateRequest
-    ): RegenerateResponse
+        @Body request: GenerateRequestBody
+    ): GenerateResponse
+
+    @POST("/api/v1/book/{bookId}/generate/stop")
+    suspend fun generateStop(
+        @Path("bookId") bookId: String,
+        @Body request: GenerateStopRequest
+    ): GenerateStopResponse
+
+    @GET("/api/v1/book/{bookId}/generate/progress")
+    suspend fun getGenerateProgress(
+        @Path("bookId") bookId: String
+    ): GenProgress
 
     @GET("/api/v1/book/{bookId}/layer-config")
     suspend fun getLayerConfig(
@@ -295,11 +306,7 @@ interface BackendApi {
         @Path("bookId") bookId: String
     ): GenericResponse
 
-    @POST("/api/v1/book/{bookId}/cancel-generation")
-    suspend fun cancelGeneration(
-        @Path("bookId") bookId: String
-    ): GenericResponse
-
+    /** VBook / cover stop only (not orchestration layers — задача H); generation stops are generateStop. */
     @POST("/api/v1/book/{bookId}/cancel-worker")
     suspend fun cancelWorker(
         @Path("bookId") bookId: String,
@@ -394,11 +401,6 @@ interface BackendApi {
         @Path("bookId") bookId: String
     ): BootstrapNextWindowResponse
 
-    @POST("/api/v1/book/{bookId}/resume-bootstrap")
-    suspend fun resumeBootstrap(
-        @Path("bookId") bookId: String
-    ): ResumeBootstrapResponse
-
     @GET("/api/v1/book/{bookId}/status")
     suspend fun getBookStatus(
         @Path("bookId") bookId: String
@@ -410,25 +412,6 @@ interface BackendApi {
     /** «Мои книги»: the book was opened — records last_opened_at, nothing else. */
     @POST("/api/v1/book/{bookId}/opened")
     suspend fun markBookOpened(@Path("bookId") bookId: String): GenericResponse
-
-    @POST("/api/v1/book/{bookId}/trigger-next-window")
-    suspend fun triggerNextWindow(
-        @Path("bookId") bookId: String,
-        @Body request: TriggerNextWindowRequest
-    ): TriggerNextWindowResponse
-
-    @GET("/api/v1/book/{bookId}/progress-panel")
-    suspend fun getProgressPanel(
-        @Path("bookId") bookId: String,
-        @Query("scope") scope: String? = null,
-        @Query("chapter_id") chapterId: String? = null,
-        @Query("scene_id") sceneId: String? = null
-    ): ProgressPanelResponse
-
-    @GET("/api/v1/book/{bookId}/generation-state")
-    suspend fun getGenerationState(
-        @Path("bookId") bookId: String
-    ): GenerationStateResponse
 
     @GET("/api/v1/book/{bookId}/text-index")
     suspend fun getTextIndex(
