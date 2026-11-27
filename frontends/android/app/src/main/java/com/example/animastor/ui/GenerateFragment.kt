@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.animastor.R
 import com.example.animastor.databinding.DialogGenerateScopeBinding
+import com.example.animastor.repository.GenerateApiV2
 import com.example.animastor.databinding.FragmentGenerateBinding
 import com.example.animastor.databinding.ItemAnalysisOverallRowBinding
 import com.example.animastor.databinding.ItemAnalysisTaskRowBinding
@@ -433,7 +434,8 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         // timeout is 15 min for the long bootstrap calls) — 10 s per poll.
         val panel = runCatching {
             withTimeout(PollRequests.POLL_REQUEST_TIMEOUT_MS) {
-                viewModel.repository.getProgressPanel(bookId = viewModel.bookId)
+                // generate API v2: GET /generate/progress (ADR §9 aggregate) → panel rows
+                viewModel.repository.getGenerateProgressPanel(viewModel.bookId)
             }
         }.getOrNull() ?: return
         val vbookToShow = if (hasVBook) {
@@ -1016,7 +1018,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         val layersText = enabledLayers.joinToString(" → ")
 
         // Show scope dialog — applies to the GPU stages after VBook completes
-        showScopeDialog { scope, _, _ ->
+        showScopeDialog(twoModes = false) { scope, _, _, _ ->
             onGenerateVBookClicked()
             val scopeLabel = when (scope) {
                 "current_scene" -> getString(R.string.scope_current_scene)
@@ -1072,9 +1074,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             Toast.makeText(requireContext(), R.string.generate_audio_disabled, Toast.LENGTH_SHORT).show()
             return
         }
-        showScopeDialog { scope, chId, scId ->
+        showScopeDialog(twoModes = true) { scope, chId, scId, mode ->
             viewModel.startGeneration(
-                GenerateViewModel.GenerationRequest(workerTypes = listOf("audio"), scope = scope, chapterId = chId, sceneId = scId),
+                GenerateViewModel.GenerationRequest(workerTypes = listOf("audio"), scope = scope, chapterId = chId, sceneId = scId, mode = mode),
                 GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)
             ) { result -> showGenerationResult(result, R.string.progress_label_audio) }
         }
@@ -1090,9 +1092,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             Toast.makeText(requireContext(), R.string.generate_image_disabled, Toast.LENGTH_SHORT).show()
             return
         }
-        showScopeDialog { scope, chId, scId ->
+        showScopeDialog(twoModes = true) { scope, chId, scId, mode ->
             viewModel.startGeneration(
-                GenerateViewModel.GenerationRequest(workerTypes = listOf("image"), scope = scope, chapterId = chId, sceneId = scId),
+                GenerateViewModel.GenerationRequest(workerTypes = listOf("image"), scope = scope, chapterId = chId, sceneId = scId, mode = mode),
                 GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)
             ) { result -> showGenerationResult(result, R.string.progress_label_image) }
         }
@@ -1108,9 +1110,9 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             Toast.makeText(requireContext(), R.string.generate_video_disabled, Toast.LENGTH_SHORT).show()
             return
         }
-        showScopeDialog { scope, chId, scId ->
+        showScopeDialog(twoModes = true) { scope, chId, scId, mode ->
             viewModel.startGeneration(
-                GenerateViewModel.GenerationRequest(workerTypes = listOf("video"), scope = scope, chapterId = chId, sceneId = scId),
+                GenerateViewModel.GenerationRequest(workerTypes = listOf("video"), scope = scope, chapterId = chId, sceneId = scId, mode = mode),
                 GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)
             ) { result -> showGenerationResult(result, R.string.progress_label_video) }
         }
@@ -1122,7 +1124,12 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         val ctx = context ?: return
         when (result) {
             is GenerateViewModel.GenerationResult.Started ->
-                Toast.makeText(ctx, getString(R.string.generate_started_layer, getString(layerLabelRes)), Toast.LENGTH_SHORT).show()
+                if (!result.existing && result.jobsCreated == 0 && result.skippedReady > 0) {
+                    // mode missing and everything in scope is ready — say so instead of «started»
+                    Toast.makeText(ctx, getString(R.string.generate_nothing_missing, result.skippedReady), Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(ctx, getString(R.string.generate_started_layer, getString(layerLabelRes)), Toast.LENGTH_SHORT).show()
+                }
             is GenerateViewModel.GenerationResult.Failed ->
                 Toast.makeText(ctx, getString(R.string.generate_start_failed, result.message), Toast.LENGTH_LONG).show()
             is GenerateViewModel.GenerationResult.LayerDisabled -> {
@@ -1352,7 +1359,17 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
      * Show the scope selection dialog before starting generation.
      * Calls [onStart] with (scope, chapterId, sceneId) when the user confirms.
      */
-    private fun showScopeDialog(onStart: (scope: String, chapterId: String?, sceneId: String?) -> Unit) {
+    /**
+     * Scope dialog. [twoModes] (layer generation — audio / image / video): two
+     * buttons, «Перегенерировать» (mode all; confirmed when the scope is wider
+     * than one scene) and «Сгенерировать недостающее» (mode missing) — ADR
+     * ORCHESTRATION_V2 §11.2, web parity ScopeDialog. VBook «Сгенерировать всё»:
+     * one «Запустить» button (mode is not used).
+     */
+    private fun showScopeDialog(
+        twoModes: Boolean,
+        onStart: (scope: String, chapterId: String?, sceneId: String?, mode: String) -> Unit,
+    ) {
         val binding = DialogGenerateScopeBinding.inflate(layoutInflater)
 
         val pos = SharedPositionManager.current.value
@@ -1372,30 +1389,55 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         binding.scopeWholeBook.isChecked = true
 
         // reports/2026-11-04/regenerate-sweep-fix.md: the tap that opened the
-        // dialog (or a double tap) never also confirms it — «Старт» is armed
+        // dialog (or a double tap) never also confirms it — the buttons are armed
         // GeneratorCommands.SCOPE_DIALOG_ARM_MS after the dialog appeared.
         val openedAt = android.os.SystemClock.uptimeMillis()
+
+        fun selectedScope(): String = when (binding.scopeGroup.checkedRadioButtonId) {
+            R.id.scopeCurrentScene -> "current_scene"
+            R.id.scopeCurrentChapter -> "current_chapter"
+            R.id.scopeFromCurrentScene -> "from_current_scene"
+            else -> "whole_book"
+        }
+        fun armedNow(): Boolean {
+            if (GeneratorCommands.armed(openedAt, android.os.SystemClock.uptimeMillis())) return true
+            Log.i(TAG, "scope dialog: tap ignored (within ${GeneratorCommands.SCOPE_DIALOG_ARM_MS} ms of opening)")
+            return false
+        }
+        fun launch(dlg: androidx.appcompat.app.AlertDialog, mode: String) {
+            val scope = selectedScope()
+            val (chId, scId) = GeneratorCommands.scopeTargets(scope, pos.chapterId, pos.sceneId)
+            dlg.dismiss()
+            onStart(scope, chId, scId, mode)
+        }
 
         AppDialogs.action(
             ctx = requireContext(),
             title = getString(R.string.generate_dialog_title),
             content = binding.root,
             cancelText = getString(R.string.dialog_cancel),
-            actionText = getString(R.string.dialog_start),
+            actionText = getString(if (twoModes) R.string.generate_mode_missing else R.string.dialog_start),
+            secondaryText = if (twoModes) getString(R.string.generate_mode_all) else null,
+            onSecondary = if (!twoModes) null else { dlg ->
+                if (armedNow()) {
+                    if (GenerateApiV2.regenerateNeedsConfirm(selectedScope())) {
+                        AppDialogs.action(
+                            ctx = requireContext(),
+                            title = getString(R.string.generate_mode_all),
+                            content = android.widget.TextView(requireContext()).apply { text = getString(R.string.generate_regenerate_confirm) },
+                            cancelText = getString(R.string.dialog_cancel),
+                            actionText = getString(R.string.generate_mode_all),
+                        ) { confirm ->
+                            confirm.dismiss()
+                            launch(dlg, GenerateApiV2.MODE_ALL)
+                        }.show()
+                    } else {
+                        launch(dlg, GenerateApiV2.MODE_ALL)
+                    }
+                }
+            },
         ) { dlg ->
-            if (!GeneratorCommands.armed(openedAt, android.os.SystemClock.uptimeMillis())) {
-                Log.i(TAG, "scope dialog: «Start» ignored (tap within ${GeneratorCommands.SCOPE_DIALOG_ARM_MS} ms of opening)")
-                return@action
-            }
-            val scope = when (binding.scopeGroup.checkedRadioButtonId) {
-                R.id.scopeCurrentScene -> "current_scene"
-                R.id.scopeCurrentChapter -> "current_chapter"
-                R.id.scopeFromCurrentScene -> "from_current_scene"
-                else -> "whole_book"
-            }
-            val (chId, scId) = GeneratorCommands.scopeTargets(scope, pos.chapterId, pos.sceneId)
-            dlg.dismiss()
-            onStart(scope, chId, scId)
+            if (armedNow()) launch(dlg, GenerateApiV2.MODE_MISSING)
         }.show()
     }
 

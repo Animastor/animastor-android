@@ -45,42 +45,55 @@ class GeneratorCommandsTest {
         assertEquals(ch to sc, GeneratorCommands.scopeTargets("from_current_scene", ch, sc))
     }
 
+    // Generate API v2 (ADR ORCHESTRATION_V2 §11.1): the body of POST /generate.
+
     @Test fun audioButtonCurrentSceneSendsOnlyItsCommand() {
         val action = GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)
         val (chId, scId) = GeneratorCommands.scopeTargets("current_scene", ch, sc)
-        val r = GeneratorCommands.request(listOf("audio"), "current_scene", chId, scId, action)
-        assertEquals(true, r.rebuild_all)
-        assertEquals(listOf("audio"), r.worker_types)
-        assertEquals("current_scene", r.scope)
-        assertEquals(ch, r.chapter_id)
-        assertEquals(sc, r.scene_id)
-        assertNull(r.new_book)
-        assertEquals("user_click", r.client_action?.kind)
-        assertEquals("generator.scope_dialog", r.client_action?.source)
-        assertEquals(action.actionId, r.client_action?.action_id)
+        val r = GeneratorCommands.request(listOf("audio"), "current_scene", chId, scId, action)!!
+        assertEquals(listOf("audio"), r.layers)
+        assertEquals("scene", r.scope.level)
+        assertEquals(ch, r.scope.chapter_id)
+        assertEquals(sc, r.scope.scene_id)
+        assertEquals("missing", r.mode)
+        assertEquals(action.actionId, r.client_action_id)
+    }
+
+    @Test fun regenerateModeIsAll() {
+        val r = GeneratorCommands.request(listOf("audio"), "current_scene", ch, sc,
+            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG), mode = "all")!!
+        assertEquals("all", r.mode)
     }
 
     @Test fun imageButtonCurrentChapterSendsChapterOnly() {
         val (chId, scId) = GeneratorCommands.scopeTargets("current_chapter", ch, sc)
         val r = GeneratorCommands.request(listOf("image"), "current_chapter", chId, scId,
-            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))
-        assertEquals(listOf("image"), r.worker_types)
-        assertEquals("current_chapter", r.scope)
-        assertEquals(ch, r.chapter_id)
-        assertNull(r.scene_id)
+            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))!!
+        assertEquals(listOf("image"), r.layers)
+        assertEquals("chapter", r.scope.level)
+        assertEquals(ch, r.scope.chapter_id)
+        assertNull(r.scope.scene_id)
     }
 
     @Test fun defaultWholeBookCarriesNoTargets() {
         val (chId, scId) = GeneratorCommands.scopeTargets("whole_book", ch, sc)
         val r = GeneratorCommands.request(listOf("audio"), "whole_book", chId, scId,
-            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))
-        assertNull(r.chapter_id)
-        assertNull(r.scene_id)
+            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG))!!
+        assertEquals("book", r.scope.level)
+        assertNull(r.scope.chapter_id)
+        assertNull(r.scope.scene_id)
     }
 
-    @Test fun retryRowActionSource() {
+    @Test fun scopeWithoutPositionGivesNoCommand() {
+        assertNull(GeneratorCommands.request(listOf("audio"), "current_scene", ch, null,
+            GeneratorCommands.userAction(GeneratorCommands.SOURCE_SCOPE_DIALOG)))
+    }
+
+    @Test fun everyClickIsItsOwnClientActionId() {
         val a = GeneratorCommands.userAction(GeneratorCommands.SOURCE_RETRY_ROW)
-        assertEquals("generator.retry_row", GeneratorCommands.clientAction(a).source)
+        val b = GeneratorCommands.userAction(GeneratorCommands.SOURCE_RETRY_ROW)
+        assertEquals("generator.retry_row", a.source)
+        assertTrue(a.actionId != b.actionId)
     }
 
     // ── Задача K (2026-11-05): ▶ / ■ of a stopped row ──────────────

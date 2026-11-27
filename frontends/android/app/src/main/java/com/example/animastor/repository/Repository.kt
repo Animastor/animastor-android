@@ -412,31 +412,10 @@ class Repository(
         return api.diffBook(bookId, DiffRequest(new_book = newBook))
     }
 
-    suspend fun regenerateBook(bookId: String, newBook: BookData? = null, rebuildAll: Boolean = false): RegenerateResponse {
-        Log.i("Repo", "regenerateBook: $bookId rebuildAll=$rebuildAll hasNewBook=${newBook != null}")
-        return api.regenerateBook(bookId, RegenerateRequest(new_book = newBook, rebuild_all = rebuildAll))
-    }
-
-    suspend fun regenerateBookScoped(
-        bookId: String,
-        newBook: BookData? = null,
-        rebuildAll: Boolean = false,
-        workerTypes: List<String>? = null,
-        scope: String? = null,
-        chapterId: String? = null,
-        sceneId: String? = null,
-        clientAction: ClientAction? = null
-    ): RegenerateResponse {
-        Log.i("Repo", "regenerateBookScoped: $bookId workers=$workerTypes scope=$scope ch=$chapterId sc=$sceneId source=${clientAction?.source ?: "absent"}")
-        return api.regenerateBookScoped(bookId, RegenerateRequest(
-            new_book = newBook,
-            rebuild_all = rebuildAll,
-            worker_types = workerTypes,
-            scope = scope,
-            chapter_id = chapterId,
-            scene_id = sceneId,
-            client_action = clientAction
-        ))
+    /** Generate API v2: POST /generate — one command per click (client_action_id). */
+    suspend fun generate(bookId: String, body: GenerateRequestBody): GenerateResponse {
+        Log.i("Repo", "generate: $bookId layers=${body.layers} mode=${body.mode} scope=${body.scope.level} ch=${body.scope.chapter_id} sc=${body.scope.scene_id} client_action_id=${body.client_action_id}")
+        return api.generate(bookId, body)
     }
 
     suspend fun getLayerConfig(bookId: String): LayerConfigResponse {
@@ -535,21 +514,23 @@ class Repository(
         api.deleteBook(bookId)
     }
 
-    suspend fun getProgressPanel(
-        bookId: String,
-        scope: String? = null,
-        chapterId: String? = null,
-        sceneId: String? = null
-    ): ProgressPanelResponse {
-        Log.d("Repo", "getProgressPanel: $bookId scope=$scope chapter=$chapterId scene=$sceneId")
-        return api.getProgressPanel(bookId, scope, chapterId, sceneId)
+    /** Generate API v2: GET /generate/progress (ADR §9 aggregate). */
+    suspend fun getGenerateProgress(bookId: String): GenProgress {
+        Log.d("Repo", "getGenerateProgress: $bookId")
+        return api.getGenerateProgress(bookId)
     }
 
-    suspend fun cancelGeneration(bookId: String) {
-        Log.i("Repo", "cancelGeneration: $bookId")
-        api.cancelGeneration(bookId)
+    /** The Generator panel rows from GET /generate/progress (row model of computeProgressRows). */
+    suspend fun getGenerateProgressPanel(bookId: String): ProgressPanelResponse =
+        GenerateApiV2.aggregateToPanel(getGenerateProgress(bookId))
+
+    /** Generate API v2: POST /generate/stop — {command_id} | {layer} | {} (whole book). */
+    suspend fun generateStop(bookId: String, request: GenerateStopRequest): GenerateStopResponse {
+        Log.i("Repo", "generateStop: $bookId command=${request.command_id} layer=${request.layer}")
+        return api.generateStop(bookId, request)
     }
 
+    /** VBook / cover stop only (not orchestration layers — задача H). */
     suspend fun cancelWorker(bookId: String, type: String, taskId: String? = null): CancelWorkerResponse {
         Log.i("Repo", "cancelWorker: $bookId type=$type taskId=$taskId")
         return api.cancelWorker(bookId, CancelWorkerRequest(type = type, task_id = taskId))
@@ -697,24 +678,6 @@ class Repository(
         }
     }
 
-    suspend fun resumeBootstrap(bookId: String): ResumeBootstrapResponse {
-        Log.i("Repo", "resumeBootstrap: $bookId")
-        return try {
-            val response = bootstrapApi.resumeBootstrap(bookId)
-            Log.i("Repo", "resumeBootstrap OK: state=${response.state} session=${response.session_id} msg=${response.progress_msg}")
-            response
-        } catch (e: HttpException) {
-            val errorBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
-            val backendMsg = if (errorBody != null) {
-                try { JSONObject(errorBody).optString("error", e.message()) } catch (_: Exception) { e.message() }
-            } else {
-                e.message()
-            }
-            Log.w("Repo", "resumeBootstrap FAILED (${e.code()}): $backendMsg")
-            throw IOException(backendMsg ?: "Resume bootstrap failed (${e.code()})")
-        }
-    }
-
     suspend fun getLazyBookStatus(bookId: String): BookStatus {
         Log.d("Repo", "getLazyBookStatus: $bookId")
         return api.getBookStatus(bookId)
@@ -771,37 +734,6 @@ class Repository(
         return body.string()
     }
 
-    // ======================================================
-    // Window Generation (trigger + state)
-    // ======================================================
-
-    suspend fun triggerNextWindow(bookId: String, chapterId: String? = null, sceneId: String? = null, unitId: String? = null, unitIndex: Int? = null, registerForGpu: Boolean? = null): TriggerNextWindowResponse {
-        Log.i("Repo", "triggerNextWindow: $bookId ch=$chapterId sc=$sceneId unitIdx=$unitIndex register_for_gpu=$registerForGpu")
-        return try {
-            val response = api.triggerNextWindow(bookId, TriggerNextWindowRequest(
-                chapter_id = chapterId,
-                scene_id = sceneId,
-                unit_id = unitId,
-                unit_index = unitIndex,
-                register_for_gpu = registerForGpu,
-            ))
-            Log.i("Repo", "triggerNextWindow: triggered=${response.triggered} queued=${response.queued} window=${response.window_index} all_done=${response.all_done}")
-            response
-        } catch (e: Exception) {
-            Log.w("Repo", "triggerNextWindow failed: ${e.message}")
-            TriggerNextWindowResponse(triggered = false, error = e.message)
-        }
-    }
-
-    suspend fun getGenerationState(bookId: String): GenerationStateResponse {
-        Log.d("Repo", "getGenerationState: $bookId")
-        return try {
-            api.getGenerationState(bookId)
-        } catch (e: Exception) {
-            Log.w("Repo", "getGenerationState failed: ${e.message}")
-            GenerationStateResponse(book_id = bookId, status = "error", error = e.message)
-        }
-    }
 }
 
 /**

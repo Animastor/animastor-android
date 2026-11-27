@@ -147,6 +147,10 @@
 
     <!-- Generate Scope Dialog (Phase C) -->
     <string name="generate_dialog_title">Generate scope</string>
+    <string name="generate_mode_missing">Generate missing</string>
+    <string name="generate_mode_all">Regenerate</string>
+    <string name="generate_regenerate_confirm">Regenerate everything in the selected scope, including what is already done?</string>
+    <string name="generate_nothing_missing">Everything is already done — skipped: %1$d. To redo it, press «Regenerate».</string>
     <string name="scope_whole_book">Whole book</string>
     <string name="scope_current_chapter">Current chapter</string>
     <string name="scope_current_scene">Current scene</string>

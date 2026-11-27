@@ -56,7 +56,8 @@ class BootstrapIdempotencyTest {
         val repo = mainSource("repository/Repository.kt")
         assertTrue(repo.contains("bootstrapApi.bootstrapBook(bookId)"))
         assertTrue(repo.contains("bootstrapApi.bootstrapNextWindow(bookId)"))
-        assertTrue(repo.contains("bootstrapApi.resumeBootstrap(bookId)"))
+        // resume-bootstrap: the dead declaration was removed (generate API v2, ADR §11.2)
+        assertFalse(repo.contains("resumeBootstrap("))
         assertFalse(repo.contains("= api.bootstrapBook("))
         // the production factories pass the no-retry API
         for (vm in listOf("ui/GenerateViewModel.kt", "ui/PlaybackViewModel.kt")) {

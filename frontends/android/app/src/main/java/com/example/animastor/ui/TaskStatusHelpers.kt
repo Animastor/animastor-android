@@ -226,13 +226,16 @@ object TaskStatusHelpers {
             ?: obj?.get("error")?.takeIf { it.isJsonPrimitive }?.asString
         if (httpCode == 422 && code == "book_has_no_text") return StartError.BookHasNoText
         if (httpCode == 409 && code == "layer_disabled") {
-            val listed = obj?.get("disabled_worker_types")
+            // /regenerate: disabled_worker_types; generate API v2 (/generate): disabled_layers
+            val listed = (obj?.get("disabled_worker_types") ?: obj?.get("disabled_layers"))
                 ?.takeIf { it.isJsonArray }?.asJsonArray
                 ?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString }
                 .orEmpty()
             return StartError.LayerDisabled(if (listed.isNotEmpty()) listed else requested)
         }
-        val serverMessage = obj?.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+        // generate API v2 errors are {code, error: <text>} (e.g. 409 book_not_v2)
+        val serverMessage = (obj?.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: obj?.get("error")?.takeIf { it.isJsonPrimitive && obj.has("code") }?.asString)
             ?.trim()?.takeIf { it.isNotEmpty() }
         return StartError.Other(serverMessage ?: message)
     }

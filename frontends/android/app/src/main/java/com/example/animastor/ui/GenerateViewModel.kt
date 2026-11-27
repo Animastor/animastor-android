@@ -9,6 +9,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.animastor.network.ProgressStream
+import com.example.animastor.network.GenProgressStream
+import com.example.animastor.repository.GenProgress
+import com.example.animastor.repository.GenerateApiV2
+import com.example.animastor.repository.GenerateStopRequest
 import com.example.animastor.network.ConnectivityObserver
 import com.example.animastor.network.RetrofitClient
 import com.example.animastor.repository.AssetsStateResponse
@@ -205,7 +209,7 @@ class GenerateViewModel(
         }
 
         try {
-            val panel = _repository.getProgressPanel(currentBookId)
+            val panel = _repository.getGenerateProgressPanel(currentBookId)
             val counts = _repository.getWorkerCounts()
             val hasActiveGpuTasks = panel.any_incomplete
             val hasActiveWorkers = hasActiveGpuTasks || counts.active_vbook > 0
@@ -657,11 +661,24 @@ class GenerateViewModel(
         val workerTypes: List<String>,
         val scope: String,
         val chapterId: String?,
-        val sceneId: String?
+        val sceneId: String?,
+        /** «Сгенерировать недостающее» = missing (default), «Перегенерировать» = all (ADR §11.2). */
+        val mode: String = GenerateApiV2.MODE_MISSING,
     )
 
+    /** The last command the Generator sent (POST /generate answer). */
+    @Volatile private var _lastCommandId: String? = null
+    val lastCommandId: String? get() = _lastCommandId
+
     sealed class GenerationResult {
-        data class Started(val dirty: Int, val scope: String) : GenerationResult()
+        data class Started(
+            val dirty: Int,
+            val scope: String,
+            val commandId: String = "",
+            val existing: Boolean = false,
+            val jobsCreated: Int = 0,
+            val skippedReady: Int = 0,
+        ) : GenerationResult()
         data class Failed(val message: String) : GenerationResult()
         /** Stage 155: /regenerate 409 layer_disabled — no task was created. */
         data class LayerDisabled(val workerTypes: List<String>) : GenerationResult()
@@ -708,36 +725,22 @@ class GenerateViewModel(
                 importProgressMessages = prevImportMsgs
             )}
             runCatching {
-                val res = _repository.regenerateBookScoped(
-                    bookId = bookId,
-                    newBook = null,
-                    rebuildAll = true,
-                    workerTypes = req.workerTypes,
-                    scope = req.scope,
-                    chapterId = req.chapterId,
-                    sceneId = req.sceneId,
-                    clientAction = GeneratorCommands.clientAction(clickAction)
-                )
-                _dirtySummary.value = res.summary
-                _dirtyScenes.value = res.dirty_scenes ?: emptyList()
-                hasUnsavedChanges = false
-                res
+                // Generate API v2 (ADR §11.1): POST /generate, one client_action_id
+                // per click (the UserAction id); the answer is {command_id, existing,
+                // summary} — build_id is not read (there is none).
+                val body = GeneratorCommands.request(req.workerTypes, req.scope, req.chapterId, req.sceneId, clickAction, req.mode)
+                    ?: throw IllegalStateException("no position for scope ${req.scope}")
+                _repository.generate(bookId, body)
             }.onSuccess { res ->
-                // Update buildId — after regeneration the backend returns a new
-                // build_id so that client-side cache keys change and stale
-                // placeholder data is naturally invalidated (cache miss → fresh
-                // network fetch) without requiring an explicit clearCache().
-                if (res.build_id != null) {
-                    val oldBuildId = buildId
-                    persistBuildId(res.build_id)
-                    Log.i(TAG, "startGeneration: updated buildId from '$oldBuildId' to '${res.build_id}'")
-                } else {
-                    Log.w(TAG, "startGeneration: build_id is null in regenerate response")
-                }
+                Log.i(TAG, "startGeneration: command ${res.command_id} existing=${res.existing} mode=${res.mode} summary=${res.summary}")
+                _lastCommandId = res.command_id
+                hasUnsavedChanges = false
                 _repository.clearCache()
                 _uiState.update { it.copy(phase = PlayerPhase.SCENE_READY) }
-                val dirtyCount = res.dirty_scenes?.size ?: 0
-                onResult(GenerationResult.Started(dirtyCount, res.scope ?: req.scope))
+                onResult(GenerationResult.Started(
+                    dirty = 0, scope = req.scope, commandId = res.command_id, existing = res.existing,
+                    jobsCreated = res.summary?.jobs_created ?: 0, skippedReady = res.summary?.skipped_ready ?: 0,
+                ))
                 viewModelScope.launch { refreshAssetsState() }
             }.onFailure { e ->
                 if (e is CancellationException) {
@@ -1079,7 +1082,8 @@ class GenerateViewModel(
         resetAnalysisState()
         viewModelScope.launch {
             runCatching {
-                _repository.cancelGeneration(bookId)
+                // Generate API v2: the book stop ({} — commands, jobs and VBook sessions)
+                _repository.generateStop(bookId, GenerateStopRequest())
             }.onSuccess {
                 Log.i(TAG, "cancelGeneration: backend cancelled successfully")
             }.onFailure { e ->
@@ -1932,9 +1936,27 @@ class GenerateViewModel(
         }
     }
 
-    /** Start the SSE push channel for the given [bookId]. Also starts VBook SSE. */
+    /**
+     * Generate API v2: GET /generate/stream — the §9 aggregate of every event
+     * (right after connect / reconnect too) → [genProgress] + panel re-poll.
+     * Web parity: generateStore runGenStream.
+     */
+    private val _genProgress = MutableStateFlow<GenProgress?>(null)
+    val genProgress: StateFlow<GenProgress?> = _genProgress.asStateFlow()
+    private val genProgressStream: GenProgressStream by lazy {
+        GenProgressStream(viewModelScope).apply {
+            onGenProgress = { agg ->
+                _genProgress.value = agg
+                requestPanelRefresh()
+            }
+        }
+    }
+
+    /** Start the SSE push channels for the given [bookId]: /generate/stream
+     *  (generation) + /progress-stream (VBook / analysis events, задача H). */
     fun startProgressStream(bookId: String) {
         progressStream.start(bookId)
+        genProgressStream.start(bookId)
     }
 
     /** Start SSE specifically for VBook progress (separate start to allow VBook-only SSE). */
@@ -1942,9 +1964,11 @@ class GenerateViewModel(
         progressStream.start(bookId)
     }
 
-    /** Stop the SSE push channel and cancel reconnection. */
+    /** Stop the SSE push channels and cancel reconnection. */
     fun stopProgressStream() {
         progressStream.cancel()
+        genProgressStream.cancel()
+        _genProgress.value = null
     }
 
     /**
@@ -1973,10 +1997,19 @@ class GenerateViewModel(
 
         viewModelScope.launch {
             runCatching {
-                _repository.cancelWorker(bookId, type, taskId)
-            }.onSuccess { res ->
-                Log.i(TAG, "cancelTask: backend cancelled type=$type taskId=$taskId successfully")
-                onResult?.invoke(taskId == null || GeneratorCommands.dismissSucceeded(taskId, res.task_ids))
+                // Generate API v2: row ■ → {command_id}, section ■ → {layer}.
+                // VBook / cover are not orchestration layers — cancel-worker (задача H).
+                val body = GenerateApiV2.stopBody(type, taskId)
+                if (body != null) {
+                    val res = _repository.generateStop(bookId, body)
+                    GenerateApiV2.stopSucceeded(taskId, res)
+                } else {
+                    val res = _repository.cancelWorker(bookId, type, taskId)
+                    taskId == null || GeneratorCommands.dismissSucceeded(taskId, res.task_ids)
+                }
+            }.onSuccess { ok ->
+                Log.i(TAG, "cancelTask: type=$type taskId=$taskId ok=$ok")
+                onResult?.invoke(ok)
             }.onFailure { e ->
                 Log.w(TAG, "cancelTask: backend call failed: ${e.message}")
                 onResult?.invoke(false)

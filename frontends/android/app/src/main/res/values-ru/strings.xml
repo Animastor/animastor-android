@@ -225,6 +225,10 @@
 
     <!-- Generate Scope Dialog (Phase C) -->
     <string name="generate_dialog_title">Область генерации</string>
+    <string name="generate_mode_missing">Сгенерировать недостающее</string>
+    <string name="generate_mode_all">Перегенерировать</string>
+    <string name="generate_regenerate_confirm">Перегенерировать всё в выбранной области, включая уже готовое?</string>
+    <string name="generate_nothing_missing">Всё уже готово — пропущено: %1$d. Чтобы сделать заново, нажмите «Перегенерировать».</string>
     <string name="scope_whole_book">Вся книга</string>
     <string name="scope_current_chapter">Текущая глава</string>
     <string name="scope_current_scene">Текущая сцена</string>
