@@ -25,6 +25,9 @@ object PollRequests {
         Regex("""^/scene/[^/?]+/[^/?]+/[^/?]+/status(?:[/?]|$)"""),
         Regex("""^/worker/counts(?:[/?]|$)"""),
         Regex("""^/generate(?:[/?]|$)"""),
+        // book-scoped generate API v2 (ADR ORCHESTRATION_V2 §11.1): /book/:id/generate,
+        // /generate/progress, /generate/stream (not /generate-next) — web client.ts parity
+        Regex("""^/book/[^/?]+/generate(?:[/?]|$)"""),
         // The hero card re-reads the voice candidate list every 3 s while a command runs (VBook v4, HERO_CARD.md §6).
         Regex("""^/book/[^/?]+/heroes/[^/?]+/voice/candidates(?:[/?]|$)"""),
     )
