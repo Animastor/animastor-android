@@ -56,7 +56,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     /** Backend-served frame-prompt limit (image.prompt / video.action) — fetched once. */
     private var imagePromptMaxChars: Int? = null
     private var errorText: TextView? = null
-    private var dirtyIndicator: TextView? = null
 
     private var mediaPlayer: MediaPlayer? = null
     private var audioFile: File? = null
@@ -192,7 +191,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         barBinding = b.positionBar
 
         errorText = b.errorText
-        dirtyIndicator = b.dirtyIndicator
 
         b.propertyTabs.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab) {
@@ -314,11 +312,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
     private fun observeViewModel() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.dirtySummary.collect { summary: DiffSummary? ->
-                        updateDirtyIndicator(summary)
-                    }
-                }
                 // ── Invalidation pipeline (view layer) ──────────────────
                 // The book bundle was mutated outside the editor's own save
                 // flow (AI Assistant patch, another device). Re-read the
@@ -407,20 +400,6 @@ class EditFragment : Fragment(R.layout.fragment_edit) {
         binding?.updateNotice?.apply {
             if (show) text = getString(R.string.edit_update_retrying)
             visibility = if (show) View.VISIBLE else View.GONE
-        }
-    }
-
-    private fun updateDirtyIndicator(summary: DiffSummary?) {
-        val b = binding ?: return
-        if (summary != null && (summary.changed > 0 || summary.added > 0 || summary.removed > 0)) {
-            val parts = mutableListOf<String>()
-            if (summary.changed > 0) parts.add("${summary.changed} changed")
-            if (summary.added > 0) parts.add("${summary.added} added")
-            if (summary.removed > 0) parts.add("${summary.removed} removed")
-            b.dirtyIndicator.text = "Dirty: ${parts.joinToString(", ")}"
-            b.dirtyIndicator.visibility = View.VISIBLE
-        } else {
-            b.dirtyIndicator.visibility = View.GONE
         }
     }
 

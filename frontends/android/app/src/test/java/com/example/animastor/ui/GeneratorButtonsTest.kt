@@ -187,8 +187,8 @@ class GeneratorButtonsTest {
     /** The stopped-row branch of renderTaskRowsToSections. */
     private fun stoppedBranch(): String {
         val src = mainSource("ui/GenerateFragment.kt")
-        val start = src.indexOf("} else if (TaskStatusHelpers.isStopped(taskRow.state)) {")
-        assertTrue("one stopped branch for failed / blocked / interrupted", start >= 0)
+        val start = src.indexOf("} else if (taskRow.state == TaskRowState.FAILED) {")
+        assertTrue("one stopped branch (failed; blocked / interrupted removed 2026-11-28)", start >= 0)
         val end = src.indexOf("} else if (taskRow.indeterminate) {", start)
         assertTrue(end > start)
         return src.substring(start, end)
@@ -203,8 +203,10 @@ class GeneratorButtonsTest {
         assertTrue(b.contains("isIndeterminate = false"))
         assertTrue(b.contains("rowBinding.workerName.text = scopedTaskLabel(taskRow)"))
         assertTrue(b.contains("rowBinding.workerTimer.text = status"))
-        for (r in listOf("task_status_failed", "task_status_blocked", "task_status_interrupted")) {
-            assertTrue(r, b.contains("R.string.$r"))
+        assertTrue(b.contains("R.string.task_status_failed"))
+        // 2026-11-28 (ORCHESTRATION_V2 этап 4): blocked / interrupted rows are gone
+        for (r in listOf("task_status_blocked", "task_status_interrupted")) {
+            assertFalse(r, b.contains("R.string.$r"))
         }
         assertTrue(b.contains("bindStoppedRowButtons(rowBinding, taskRow, now)"))
         // the timer tick never overwrites the status
@@ -228,8 +230,11 @@ class GeneratorButtonsTest {
         assertTrue(bind.contains("workerStopButton.contentDescription = getString(R.string.task_dismiss)"))
         for (lang in listOf("values", "values-ru")) {
             val strings = resSource("$lang/strings.xml")
-            for (n in listOf("task_status_interrupted", "task_status_blocked", "task_status_failed", "task_dismiss", "task_dismiss_failed")) {
+            for (n in listOf("task_status_failed", "task_dismiss", "task_dismiss_failed")) {
                 assertTrue("$lang/$n", strings.contains("<string name=\"$n\">"))
+            }
+            for (n in listOf("task_status_interrupted", "task_status_blocked")) {
+                assertFalse("$lang/$n removed", strings.contains("<string name=\"$n\">"))
             }
         }
     }

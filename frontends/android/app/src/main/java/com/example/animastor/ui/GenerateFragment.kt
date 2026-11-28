@@ -620,17 +620,15 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
                 rowBinding.workerTimer.visibility = View.GONE
                 rowBinding.workerProgressBar.visibility = View.GONE
                 rowBinding.workerStopButton.visibility = View.GONE
-            } else if (TaskStatusHelpers.isStopped(taskRow.state)) {
-                // Задача K (2026-11-05) — a stopped command (failed / blocked /
-                // interrupted) looks like an ordinary progress row: name,
-                // ready/total, percent, the bar at its current fill; a short
-                // status in place of the timer and two small square icon
-                // buttons ▶ «Продолжить» / ■ «Снять». Nothing restarts by itself.
-                val status = when (taskRow.state) {
-                    TaskRowState.FAILED -> getString(R.string.task_status_failed, failureReason(taskRow))
-                    TaskRowState.BLOCKED -> getString(R.string.task_status_blocked)
-                    else -> getString(R.string.task_status_interrupted)
-                }
+            } else if (taskRow.state == TaskRowState.FAILED) {
+                // Задача K (2026-11-05) — a stopped command (failed) looks like an
+                // ordinary progress row: name, ready/total, percent, the bar at its
+                // current fill; a short status in place of the timer and two small
+                // square icon buttons ▶ «Продолжить» / ■ «Снять». Nothing restarts
+                // by itself. (2026-11-28, ORCHESTRATION_V2 этап 4: the blocked /
+                // interrupted rows were states of the legacy task registry —
+                // orchestration v2 never produces them. Web parity: GeneratePage.)
+                val status = getString(R.string.task_status_failed, failureReason(taskRow))
                 val pct = taskRow.percent.coerceIn(0, 100)
                 rowBinding.workerName.text = scopedTaskLabel(taskRow)
                 rowBinding.workerName.setTextColor(textColor)

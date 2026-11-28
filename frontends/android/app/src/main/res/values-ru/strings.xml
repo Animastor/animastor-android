@@ -257,14 +257,10 @@
     <string name="progress_idle">Ожидание</string>
     <string name="generation_done">Готово</string>
     <!-- Stage 155 — генерация только по команде (статусы задач) -->
-    <string name="task_blocked_no_worker">Нет воркера: %1$s</string>
-    <string name="task_interrupted">Прервано</string>
     <string name="task_cancelled">Отменено</string>
     <string name="task_retry">Повторить</string>
     <string name="task_continue">Продолжить</string>
     <!-- Задача K (2026-11-05) — stopped row: short status + ■ «Снять» -->
-    <string name="task_status_interrupted">прервано</string>
-    <string name="task_status_blocked">ожидает воркер</string>
     <string name="task_status_failed">ошибка: %1$s</string>
     <string name="task_dismiss">Снять</string>
     <string name="task_dismiss_failed">Не удалось снять задачу</string>

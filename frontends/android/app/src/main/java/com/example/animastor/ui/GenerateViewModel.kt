@@ -18,7 +18,6 @@ import com.example.animastor.network.RetrofitClient
 import com.example.animastor.repository.AssetsStateResponse
 import com.example.animastor.repository.BootstrapInProgressException
 import com.example.animastor.repository.BookSessionStore
-import com.example.animastor.repository.DiffSummary
 import com.example.animastor.repository.ResilientReloader
 import com.example.animastor.repository.ResourceInvalidations
 import com.example.animastor.repository.SharedPrefsKeyValueStore
@@ -311,7 +310,6 @@ class GenerateViewModel(
         }
 
         hasUnsavedChanges = false
-        _dirtySummary.value = null
         _dirtyScenes.value = emptyList()
         persistBookId(id)
         persistBuildId(bookData.manifest?.build_id ?: "")
@@ -1126,7 +1124,6 @@ class GenerateViewModel(
         generationJob = null
         stopTimer()
         hasUnsavedChanges = false
-        _dirtySummary.value = null
         _dirtyScenes.value = emptyList()
         _isRegenerating.value = false
         _importCompleteReceived = false
@@ -1301,7 +1298,6 @@ class GenerateViewModel(
         generationJob = null
         stopTimer()
         hasUnsavedChanges = false
-        _dirtySummary.value = null
         _dirtyScenes.value = emptyList()
         _isRegenerating.value = false
         _importCompleteReceived = false
@@ -1576,8 +1572,8 @@ class GenerateViewModel(
     var hasUnsavedChanges = false
         private set
 
-    private val _dirtySummary = MutableStateFlow<DiffSummary?>(null)
-    val dirtySummary: StateFlow<DiffSummary?> = _dirtySummary.asStateFlow()
+    // (The Edit «book changed» indicator — dirtySummary — is removed, owner
+    // decision 28.11: its only source was the /regenerate answer. Web parity.)
 
     private val _dirtyScenes = MutableStateFlow<List<DirtyScene>>(emptyList())
     val dirtyScenes: StateFlow<List<DirtyScene>> = _dirtyScenes.asStateFlow()

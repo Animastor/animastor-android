@@ -3,6 +3,19 @@
 Нормативно — `animastor-docs` (`CHANGELOG.md`, `architecture/ORCHESTRATION_V2.md` §11,
 паритет — `architecture/ANDROID_WEB_PARITY.md`). Здесь — краткая запись по репозиторию.
 
+## 0.3.8 (21) — 2026-11-28 — удалена legacy-оркестрация (ветка `chore/remove-legacy-orchestration`)
+
+- Убран индикатор «книга изменена» на экране Редактора (решение владельца 28.11): `GenerateViewModel.dirtySummary`,
+  наблюдатель и `updateDirtyIndicator` в `EditFragment`, `TextView dirtyIndicator` в `fragment_edit.xml` (строка
+  сохранения теперь крепится к `updateNotice`). Источником значения был ответ удалённого `/regenerate`. Модель
+  `DiffSummary` осталась — это часть ответа `diffBook`. Индикатор героя (`HeroModel.dirtySummary`) не тронут.
+  Паритет: web `EditPage` (`edit-dirty`).
+- Генератор: отрисовка остановленной строки — только `failed`; `blocked` / `interrupted` были состояниями
+  legacy-реестра задач, оркестрация v2 их не выдаёт. Удалены строки `task_status_blocked`, `task_status_interrupted`,
+  `task_interrupted`, `task_blocked_no_worker`. Классификатор `TaskStatusHelpers` не менялся (как пакет
+  `@animastor/web-generator` в web). Паритет: web `GeneratePage`.
+- Версия 0.3.8 (21): изменился код, который попадает в сборку.
+
 ## 0.3.7 (20) — 2026-11-28 — удалены legacy-эндпоинты backend: чистка клиента (ветка `chore/remove-legacy-endpoints`)
 
 - `network/PollRequests.kt`: из no-store убраны `progress-panel` и `generation*` (роуты удалены на backend,
