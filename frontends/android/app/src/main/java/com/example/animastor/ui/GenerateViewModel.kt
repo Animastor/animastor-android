@@ -156,7 +156,7 @@ class GenerateViewModel(
     }
 
     /**
-     * /regenerate refused up front (409 layer_disabled, 422 book_has_no_text):
+     * POST /generate refused up front (409 layer_disabled, 422 book_has_no_text):
      * no task exists — undo what the click armed ([GenerationStartArming.settleRefused]:
      * IDLE / flags false, or, when a generation was already running, its flags
      * and status as they were). Not for the generic failure path (network, 429).
@@ -680,9 +680,9 @@ class GenerateViewModel(
             val skippedReady: Int = 0,
         ) : GenerationResult()
         data class Failed(val message: String) : GenerationResult()
-        /** Stage 155: /regenerate 409 layer_disabled — no task was created. */
+        /** Stage 155: POST /generate 409 layer_disabled — no task was created. */
         data class LayerDisabled(val workerTypes: List<String>) : GenerationResult()
-        /** 2026-11-24: /regenerate 422 book_has_no_text — a blank book, no task was created. */
+        /** 2026-11-24: POST /generate 422 book_has_no_text — a blank book, no task was created. */
         object BookHasNoText : GenerationResult()
     }
 
@@ -710,7 +710,7 @@ class GenerateViewModel(
         val armed = GenerationStartArming.arm(startPort, bookId)
 
         // 🔧 FIX: Don't cancel previous generationJob — parallel generations are
-        // independent. The /regenerate API call is fire-and-forget; its response
+        // independent. The POST /generate call is fire-and-forget; its response
         // handler only updates local state (buildId, cache). Cancelling would
         // prevent the new generation from updating buildId, but more importantly
         // it would break the pattern of independent parallel workers.
@@ -773,7 +773,7 @@ class GenerateViewModel(
     /**
      * Stage 155 — «Повторить» / «Продолжить» for a blocked / interrupted row.
      * Never automatic: the user presses the button and a NEW explicit
-     * /regenerate with the row's worker type and scope is sent.
+     * POST /generate with the row's worker type and scope is sent.
      * Returns false when the row has nothing to repeat.
      */
     fun retryStoppedTask(row: TaskRow, action: GeneratorCommands.UserAction, onResult: (GenerationResult) -> Unit): Boolean {
@@ -1811,7 +1811,7 @@ class GenerateViewModel(
     /**
      * Row-unique tracking key for one progress row.
      *
-     * A generation task can emit MULTIPLE rows: the backend's progress-panel
+     * A generation task can emit MULTIPLE rows: the generate API aggregate
      * emits one row per target scene for `current_scene` tasks, and a task can
      * legitimately span several scenes. Keying the monotonic floor / completion
      * timestamp by task_id ALONE made sibling rows of the same task share one
@@ -1839,17 +1839,17 @@ class GenerateViewModel(
      */
     private val taskFrozenElapsed = mutableMapOf<String, Long>()
 
-    // ── О1: progress-panel re-poll requests (web: state/panelRefresh.ts) ──
+    // ── О1: progress re-poll requests (web: state/panelRefresh.ts) ──
     // CONFLATED: several requests while a poll is in flight collapse into one
     // immediate re-poll, none is lost.
     private val panelRefreshRequests = Channel<Unit>(Channel.CONFLATED)
 
-    /** Ask the Generator's progress-panel loop to poll now (SSE / screen resumed). */
+    /** Ask the Generator's progress poll loop to poll now (SSE / screen resumed). */
     fun requestPanelRefresh() {
         panelRefreshRequests.trySend(Unit)
     }
 
-    /** Interruptible sleep between progress-panel polls: [ms], or less on [requestPanelRefresh]. */
+    /** Interruptible sleep between progress polls: [ms], or less on [requestPanelRefresh]. */
     suspend fun awaitNextPanelPoll(ms: Long) {
         withTimeoutOrNull(ms) { panelRefreshRequests.receive() }
     }
@@ -1921,9 +1921,9 @@ class GenerateViewModel(
                 } else if (event.type == "generation_complete") {
                     // A completion event belongs to one server-side generation
                     // scope and is not proof that every parallel worker type is
-                    // finished. The progress-panel poll remains authoritative
+                    // finished. The progress poll remains authoritative
                     // and finalises only after all visible workers are done.
-                    Log.i(TAG, "SSE generation_complete received — waiting for progress-panel reconciliation")
+                    Log.i(TAG, "SSE generation_complete received — waiting for progress poll reconciliation")
                 } else if (event.type == "import_complete") {
                     // F10: Server-pushed terminal event — all agent windows
                     // processed. The pollAgentProgress loop will exit on next
@@ -2026,7 +2026,7 @@ class GenerateViewModel(
     /**
      * Задача K — «■ Снять» on a stopped (failed / blocked / interrupted) row:
      * the same cancel-worker request as the ■ of an active row; on success the
-     * row disappears. Never sends /regenerate.
+     * row disappears. Never sends a generate command.
      */
     fun dismissStoppedTask(row: TaskRow, onResult: (Boolean) -> Unit) {
         val taskId = row.taskId ?: return onResult(false)
@@ -2184,7 +2184,7 @@ class GenerateViewModel(
             ))
         }
 
-        // ── GPU tasks (from server progress-panel) ──
+        // ── GPU tasks (from the server aggregate, GET /generate/progress) ──
         if (panel != null) {
             for (sw in panel.tasks) {
                 if (!sw.visible) continue

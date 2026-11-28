@@ -9,7 +9,7 @@ import java.security.SecureRandom
  * (reports/2026-11-04/regenerate-sweep-fix.md; web parity:
  * frontends/app/src/state/generateStore.ts `userAction` / `startGeneration`).
  *
- *  - A command (POST /regenerate) needs a [UserAction] built in the click
+ *  - A command (POST /generate) needs a [UserAction] built in the click
  *    handler («Старт» of the scope dialog, «Повторить» of a stopped row).
  *    Observers, timers, polls, SSE and restore paths have none and cannot
  *    send a command ([mayStart] is false → nothing is requested).

@@ -93,14 +93,21 @@ class TaskStatusHelpersTest {
 
     @Test fun layerDisabled409UsesBodyTypes() {
         val e = TaskStatusHelpers.classifyStartError(409,
-            """{"error":"layer_disabled","message":"All requested layers are disabled in layer-config","disabled_worker_types":["image"]}""",
+            """{"code":"layer_disabled","error":"all requested layers are disabled in layer-config","disabled_layers":["image"]}""",
             "HTTP 409", listOf("image"))
         assertEquals(TaskStatusHelpers.StartError.LayerDisabled(listOf("image")), e)
     }
 
     @Test fun layerDisabled409WithoutListFallsBackToRequested() {
-        val e = TaskStatusHelpers.classifyStartError(409, """{"error":"layer_disabled"}""", "HTTP 409", listOf("video"))
+        val e = TaskStatusHelpers.classifyStartError(409, """{"code":"layer_disabled"}""", "HTTP 409", listOf("video"))
         assertEquals(TaskStatusHelpers.StartError.LayerDisabled(listOf("video")), e)
+    }
+
+    @Test fun formerRegenerateShapeIsNotALayerRefusal() {
+        // {error: layer_disabled, disabled_worker_types} was the /regenerate answer (removed 2026-11-28)
+        val e = TaskStatusHelpers.classifyStartError(409,
+            """{"error":"layer_disabled","disabled_worker_types":["image"]}""", "HTTP 409", listOf("image"))
+        assertEquals(TaskStatusHelpers.StartError.Other("HTTP 409"), e)
     }
 
     @Test fun otherErrorsKeepGenericPath() {

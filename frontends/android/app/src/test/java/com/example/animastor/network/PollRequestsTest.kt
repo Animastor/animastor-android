@@ -17,20 +17,18 @@ import org.junit.Test
 class PollRequestsTest {
 
     private val pollPaths = listOf(
-        "/book/ba_1/progress-panel",
         "/book/ba_1/progress-stream",
         "/book/ba_1/assets-state",
         "/book/ba_1/status",
         "/book/ba_1/agent-status",
         "/book/ba_1/layer-config",
-        "/book/ba_1/generation-status",
-        "/book/ba%201/progress-panel?x=1",
+        "/book/ba%201/assets-state?x=1",
         "/scene/ba_1/ch-1/sc-1/status",
         "/scene/ba_1/ch-1/sc-1/status?build_id=b1",
         "/worker/counts",
         "/generate/commands/abc",
         "/generate",
-        "/api/v1/book/ba_1/progress-panel",
+        "/api/v1/book/ba_1/assets-state",
         // VBook v4 hero card: the candidate list is re-read every 3 s while a command runs
         "/book/ba_1/heroes/yura/voice/candidates",
         "/api/v1/book/ba_1/heroes/yura/voice/candidates",
@@ -52,6 +50,9 @@ class PollRequestsTest {
         "/book/ba_1/heroes/yura",
         "/book/ba_1/heroes/yura/voice/candidatesx",
         "/book/X/generate-next",
+        // removed 2026-11-28 (ORCHESTRATION_V2 §11.3) — no longer polling paths
+        "/book/ba_1/progress-panel",
+        "/book/ba_1/generation-state",
     )
 
     @Test
@@ -90,7 +91,7 @@ class PollRequestsTest {
         server.start()
         try {
             val client = OkHttpClient.Builder().addInterceptor(NoStoreInterceptor()).build()
-            client.newCall(Request.Builder().url(server.url("/api/v1/book/b1/progress-panel")).build()).execute().close()
+            client.newCall(Request.Builder().url(server.url("/api/v1/book/b1/generate/progress")).build()).execute().close()
             client.newCall(Request.Builder().url(server.url("/api/v1/book/b1")).build()).execute().close()
             client.newCall(Request.Builder().url(server.url("/api/v1/worker/counts")).build()).execute().close()
             assertEquals("no-store", server.takeRequest().getHeader("Cache-Control"))
