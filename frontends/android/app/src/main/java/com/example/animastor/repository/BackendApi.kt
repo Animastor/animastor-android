@@ -244,10 +244,9 @@ interface BackendApi {
     ): DiffResponse
 
     // ── Generate API v2 (ADR ORCHESTRATION_V2 §11.1) ──
-    // Replaces /regenerate, cancel-generation, progress-panel, progress-stream
-    // (the stream is network/GenProgressStream.kt). The legacy declarations
-    // regenerateBook(new_book) / regenerateBookScoped / cancelGeneration /
-    // getProgressPanel are removed with this switch.
+    // POST /generate, /generate/stop, GET /generate/progress; the stream is
+    // network/GenProgressStream.kt. The former backend routes were removed
+    // 2026-11-28 (ADR §11.3).
 
     @POST("/api/v1/book/{bookId}/generate")
     suspend fun generate(

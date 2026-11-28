@@ -21,12 +21,14 @@ object PollRequests {
 
     // Paths relative to /api/v1, query string ignored — same patterns as web.
     private val NO_STORE_GET_PATHS: List<Regex> = listOf(
-        Regex("""^/book/[^/?]+/(?:progress-panel|progress-stream|assets-state|status|agent-status|layer-config|generation[^/?]*)(?:[/?]|$)"""),
+        // /book/:id/{progress-stream,assets-state,status,agent-status,layer-config}
+        // (progress-panel and generation-state were removed 2026-11-28, ORCHESTRATION_V2 §11.3)
+        Regex("""^/book/[^/?]+/(?:progress-stream|assets-state|status|agent-status|layer-config)(?:[/?]|$)"""),
         Regex("""^/scene/[^/?]+/[^/?]+/[^/?]+/status(?:[/?]|$)"""),
         Regex("""^/worker/counts(?:[/?]|$)"""),
         Regex("""^/generate(?:[/?]|$)"""),
         // book-scoped generate API v2 (ADR ORCHESTRATION_V2 §11.1): /book/:id/generate,
-        // /generate/progress, /generate/stream (not /generate-next) — web client.ts parity
+        // /generate/progress, /generate/stream — web client.ts parity
         Regex("""^/book/[^/?]+/generate(?:[/?]|$)"""),
         // The hero card re-reads the voice candidate list every 3 s while a command runs (VBook v4, HERO_CARD.md §6).
         Regex("""^/book/[^/?]+/heroes/[^/?]+/voice/candidates(?:[/?]|$)"""),

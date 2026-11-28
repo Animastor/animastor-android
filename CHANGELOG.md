@@ -3,6 +3,15 @@
 Нормативно — `animastor-docs` (`CHANGELOG.md`, `architecture/ORCHESTRATION_V2.md` §11,
 паритет — `architecture/ANDROID_WEB_PARITY.md`). Здесь — краткая запись по репозиторию.
 
+## 0.3.7 (20) — 2026-11-28 — удалены legacy-эндпоинты backend: чистка клиента (ветка `chore/remove-legacy-endpoints`)
+
+- `network/PollRequests.kt`: из no-store убраны `progress-panel` и `generation*` (роуты удалены на backend,
+  `ORCHESTRATION_V2.md` §11.3) — паритет с web `api/client.ts` и backend `middleware/no-store.js`.
+- `ui/TaskStatusHelpers.kt` `classifyStartError`: отказ старта распознаётся только в форме `/generate`
+  (`code: layer_disabled`, `disabled_layers`) — паритет с web `commandErrors.ts`.
+- Комментарии (`BackendApi.kt`, GenerateViewModel / Fragment, GeneratorCommands, GenerationStartArming) обновлены.
+  UI не менялся. `testDebugUnitTest` 379/0 (+1). Версия APK 0.3.7 (20).
+
 ## 0.3.6 (19) — 2026-11-27 — no-store для `/book/:id/generate/*` (ветка `fix/gen-listen-nostore`)
 
 - `network/PollRequests.kt` `isNoStorePath`: добавлен `/book/:id/generate(/…)` — `GET /generate/progress` идёт с

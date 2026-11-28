@@ -1,7 +1,7 @@
 package com.example.animastor.ui
 
 // A generation start arms the timer and opens the progress stream BEFORE the
-// POST /regenerate. When the server refuses the command up front — 409
+// POST /generate. When the server refuses the command up front — 409
 // layer_disabled, 422 book_has_no_text — no task exists: the timer must not
 // tick and the stream must be closed. Pure logic (no Android framework);
 // GenerateViewModel implements the port over its own fields.

@@ -328,7 +328,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
             }
         }
 
-        // ── Observe progress (poll /progress-panel every 1.5s) ──
+        // ── Observe progress (poll /generate/progress every 1.5s) ──
         lifecycleScope.launch {
             while (true) {
                 refreshProgressUi()
@@ -501,7 +501,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
      * Rows are tagged with their TaskRow: a done row shows its frozen
      * elapsedSeconds, any other row the live (now - timerStartedAt) value.
      * The retry-pause countdown (GPU retry policy) ticks here too — by the
-     * CLIENT clock; the next progress-panel poll re-renders the row.
+     * CLIENT clock; the next progress poll re-renders the row.
      */
     private fun refreshTimerDisplay() {
         val b = binding ?: return
@@ -1118,7 +1118,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         }
     }
 
-    /** Toast for a /regenerate outcome. Stage 155: 409 layer_disabled says
+    /** Toast for a POST /generate outcome. Stage 155: 409 layer_disabled says
      *  which layer to switch on instead of a generic failure. */
     private fun showGenerationResult(result: GenerateViewModel.GenerationResult, layerLabelRes: Int) {
         val ctx = context ?: return
@@ -1174,7 +1174,7 @@ class GenerateFragment : Fragment(R.layout.fragment_generate) {
         rowBinding.workerStopButton.setOnClickListener { onDismissStoppedRow(key, taskRow) }
     }
 
-    /** ▶ — exactly one /regenerate through onRetryRow (guarded: 400 ms / in flight). */
+    /** ▶ — exactly one POST /generate through onRetryRow (guarded: 400 ms / in flight). */
     private fun onContinueStoppedRow(key: String, taskRow: TaskRow) {
         if (!stoppedRowGuard.accept(key, System.currentTimeMillis())) {
             Log.i(TAG, "stopped row: ▶ ignored (double tap / in flight) task=${taskRow.taskId}")

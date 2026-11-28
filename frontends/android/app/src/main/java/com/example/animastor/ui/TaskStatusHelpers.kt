@@ -8,7 +8,7 @@ import com.google.gson.JsonParser
 //  Task status helpers — Stage 155 «генерация только по команде»
 // ═══════════════════════════════════════════════════════════════
 //  Backend Stage 155 (animastor-docs architecture/COMMAND_ONLY_GENERATION.md):
-//  GET /book/{id}/progress-panel rows carry the registry task status
+//  Generator rows (aggregate of GET /generate/progress) carry the task status
 //    status          active | completed | cancelled | blocked | interrupted |
 //                    failed
 //    blocked         no live worker of the type (blocked_reason no_worker:<type>)
@@ -20,7 +20,7 @@ import com.google.gson.JsonParser
 //  blocked / interrupted / failed rows are visible but NOT running: no spinner,
 //  no timer, no auto-retry — the user sends a NEW command (same type + scope).
 //  A retrying row keeps the spinner: the SERVER retries.
-//  POST /regenerate answers 409 {error:"layer_disabled", disabled_worker_types}
+//  POST /generate answers 409 {code:"layer_disabled", disabled_layers}
 //  when every requested layer is off.
 //  Pure Kotlin (no Android framework) — mirror of web
 //  @animastor/web-generator taskStatus.ts + app features/generation/commandErrors.ts
@@ -58,7 +58,7 @@ object TaskStatusHelpers {
         state == TaskRowState.BLOCKED || state == TaskRowState.INTERRUPTED ||
             state == TaskRowState.FAILED
 
-    /** The /regenerate worker type for a row type (the cover is an image task). */
+    /** The generate layer for a row type (the cover is an image task). */
     fun commandWorkerType(rowType: String): String? = when {
         rowType == "cover" -> "image"
         rowType in GPU_TYPES -> rowType
@@ -150,7 +150,7 @@ object TaskStatusHelpers {
 
     /**
      * «Повтор %1$d/%2$d через %3$s» while the pause runs; after `retryAt`
-     * passes → «Повтор…» until the next progress-panel poll. null when the row
+     * passes → «Повтор…» until the next progress poll. null when the row
      * is not waiting out a pause. Driven by the CLIENT clock (`now`).
      */
     fun retryLine(
@@ -200,7 +200,7 @@ object TaskStatusHelpers {
         }
     }
 
-    /** Classification of a failed /regenerate call. */
+    /** Classification of a failed POST /generate. */
     sealed class StartError {
         data class LayerDisabled(val workerTypes: List<String>) : StartError()
         /** 422 `book_has_no_text` (2026-11-24): a blank book — nothing to
@@ -211,10 +211,11 @@ object TaskStatusHelpers {
     }
 
     /**
-     * Classify a failed /regenerate by the body code:
+     * Classify a failed POST /generate by the body code:
      *  - HTTP 422 `book_has_no_text` → [StartError.BookHasNoText];
-     *  - HTTP 409 `layer_disabled` → [StartError.LayerDisabled] (types from
-     *    disabled_worker_types, else the requested ones);
+     *  - HTTP 409 `code: layer_disabled` → [StartError.LayerDisabled] (types from
+     *    disabled_layers, else the requested ones; the former /regenerate shape
+     *    `error: layer_disabled` + disabled_worker_types left with the route, 2026-11-28);
      *  - anything else → [StartError.Other] with the server `message` when the
      *    body carries one (so an unknown code never shows a bare "HTTP 422"),
      *    otherwise the transport message.
@@ -225,9 +226,9 @@ object TaskStatusHelpers {
         val code = obj?.get("code")?.takeIf { it.isJsonPrimitive }?.asString
             ?: obj?.get("error")?.takeIf { it.isJsonPrimitive }?.asString
         if (httpCode == 422 && code == "book_has_no_text") return StartError.BookHasNoText
-        if (httpCode == 409 && code == "layer_disabled") {
-            // /regenerate: disabled_worker_types; generate API v2 (/generate): disabled_layers
-            val listed = (obj?.get("disabled_worker_types") ?: obj?.get("disabled_layers"))
+        val codeField = obj?.get("code")?.takeIf { it.isJsonPrimitive }?.asString
+        if (httpCode == 409 && codeField == "layer_disabled") {
+            val listed = obj?.get("disabled_layers")
                 ?.takeIf { it.isJsonArray }?.asJsonArray
                 ?.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString }
                 .orEmpty()
